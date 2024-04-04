@@ -19,7 +19,7 @@ def target():
 
     return target_position
 
-def get_joints_limits(robot_id, num_joints):
+def get_joints_limits(robot_id, num_joints,arg_dict):
         """
         Identify limits, ranges and rest poses of individual robot joints. Uses data from robot model.
 
@@ -42,8 +42,12 @@ def get_joints_limits(robot_id, num_joints):
                 joints_limits_u.append(joint_info[9])
                 joints_ranges.append(joint_info[9] - joint_info[8])
                 joints_rest_poses.append((joint_info[9] + joint_info[8])/2)
-            if link_name.decode("utf-8") == 'endeffector':
-                end_effector_index = jid
+            if arg_dict["left"]:
+                if link_name.decode("utf-8") == 'endeffectol':
+                    end_effector_index = jid
+            else:
+                if link_name.decode("utf-8") == 'endeffector':
+                    end_effector_index = jid
             
         return [joints_limits_l, joints_limits_u], joints_ranges, joints_rest_poses, end_effector_index, joint_names, link_names, joint_indices
 
@@ -141,6 +145,7 @@ def main():
     parser.add_argument("-p", "--position", nargs=3, type=float, help="Target position for the robot end effector as a list of three floats.")
     parser.add_argument("-r", "--real_robot", action="store_true", help="If set, execute action on real robot.")
     parser.add_argument("-g", "--gui", action="store_true", help="If set, turn the GUI on")
+    parser.add_argument("-l", "--left", action="store_true", help="If set, use left hand IK")
     parser.add_argument("-re", "--reset", action="store_true", help="If set, reset the robot to the initial position after each postion")
     arg_dict = vars(parser.parse_args())
     
@@ -154,13 +159,16 @@ def main():
         p.connect(p.DIRECT)
     
     # Load the URDF robot a create scene
-    robot_id = p.loadURDF("./nico_upper_rh6d_dual.urdf", [0, 0, 0])
+    if arg_dict["left"]:
+        robot_id = p.loadURDF("./nico_upper_rh6d_l.urdf", [0, 0, 0])
+    else:
+        robot_id = p.loadURDF("./nico_upper_rh6d_r.urdf", [0, 0, 0])
     p.createMultiBody(baseVisualShapeIndex=p.createVisualShape(shapeType=p.GEOM_BOX, halfExtents=[.3,.45,0.02], rgbaColor=[0.6,0.6,0.6,1]),
                           baseCollisionShapeIndex= -1, baseMass=0,basePosition=[0.27,0,0.02])
     p.createMultiBody(baseVisualShapeIndex=p.createVisualShape(shapeType=p.GEOM_BOX, halfExtents=[.16,.26,0.01], rgbaColor=[0,0,0.0,1]),
                           baseCollisionShapeIndex= -1, baseMass=0,basePosition=[0.41,0,0.035])
     num_joints = p.getNumJoints(robot_id)
-    joints_limits, joints_ranges, joints_rest_poses, end_effector_index, joint_names, link_names, joint_indices = get_joints_limits(robot_id, num_joints)
+    joints_limits, joints_ranges, joints_rest_poses, end_effector_index, joint_names, link_names, joint_indices = get_joints_limits(robot_id, num_joints,arg_dict)
     # Custom intital position
     
     joints_rest_poses = deg2rad([-15, 68, 2.8, 56.4, 0.0, 11.0, -70.0])
