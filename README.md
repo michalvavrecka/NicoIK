@@ -45,13 +45,19 @@ It will repeatedly calculate IK for this position and output joint angles to ter
 
 **Reset to initial position**
 
-`python ik_solver.py -g -re`
+`python ik_solver.py -g -i`
 
 It will reset robot to initial position defined in line 166 after each calculation
 
+**Animate motion**
+
+`python ik_solver.py -g -a`
+
+It will show the trajectory of motion in simulator
+
 **Real robot**
 
-`python ik_solver.py -g -r`
+`python ik_solver.py -g -rr`
 
 It will initialize robot to default position and then execute the motion from IK
 

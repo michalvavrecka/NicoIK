@@ -15,7 +15,7 @@ REALJOINTS = ['r_shoulder_z','r_shoulder_y','r_arm_x','r_elbow_y','r_wrist_z','r
 
 def target():
     
-    target_position = [0.45,-0.3*random.rand(), 0.1]  # Write your own method for end effector position here
+    target_position = [0.25+(0.3*random.rand()),0.25+(-0.5*random.rand()), 0.05]  # Write your own method for end effector position here
 
     return target_position
 
@@ -143,17 +143,18 @@ def reset_robot(robot):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--position", nargs=3, type=float, help="Target position for the robot end effector as a list of three floats.")
-    parser.add_argument("-r", "--real_robot", action="store_true", help="If set, execute action on real robot.")
+    parser.add_argument("-rr", "--real_robot", action="store_true", help="If set, execute action on real robot.")
+    parser.add_argument("-a", "--animate", action="store_true", help="If set, the animation of motion is shown.")
     parser.add_argument("-g", "--gui", action="store_true", help="If set, turn the GUI on")
     parser.add_argument("-l", "--left", action="store_true", help="If set, use left hand IK")
-    parser.add_argument("-re", "--reset", action="store_true", help="If set, reset the robot to the initial position after each postion")
+    parser.add_argument("-i", "--initial", action="store_true", help="If set, reset the robot to the initial position after each postion")
     arg_dict = vars(parser.parse_args())
     
 
     # GUI initialization
     if arg_dict["gui"]:
         p.connect(p.GUI)
-        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
+        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1)
         p.resetDebugVisualizerCamera(cameraDistance=1, cameraYaw=90, cameraPitch=-40, cameraTargetPosition=[0, 0, 0])
     else:
         p.connect(p.DIRECT)
@@ -189,7 +190,7 @@ def main():
 
     while True:
         #Reset robot to initial position
-        if arg_dict["reset"]:
+        if arg_dict["initial"]:
             if arg_dict["real_robot"]:
                 robot = reset_robot(robot)
 
@@ -217,24 +218,34 @@ def main():
         #                                               jointRanges=joints_ranges,
         #                                               restPoses=joints_rest_poses)
         
-        for i in range(len(joint_indices)):
-            p.resetJointState(robot_id, joint_indices[i], ik_solution[i])
-        time.sleep(SIMDELAY)
+        
+        if arg_dict["animate"]:
+            for i in range(len(joint_indices)):
+                p.setJointMotorControl2(robot_id, joint_indices[i], p.POSITION_CONTROL, ik_solution[i])
+
+            for _ in range(100):
+                # Set joint angles to the IK solution
+                p.stepSimulation()
+        else:
+            for i in range(len(joint_indices)):
+                p.resetJointState(robot_id, joint_indices[i], ik_solution[i])
+            time.sleep(SIMDELAY)
+        
+        
+        
+        
         print(rad2deg(ik_solution))
+        
+        
+        
+        
+        
         if arg_dict["real_robot"]:
             for i,realjoint in enumerate(REALJOINTS):
                 robot.setAngle(realjoint,rad2deg(ik_solution[i]),DEFAULT_SPEED)
             time.sleep(SIMREALDELAY)
             # Send joint angles to real robot
-        #for _ in range(20):
-            # Set joint angles to the IK solution
-        #    for joint_index in motor_indices:
-        #        p.setJointMotorControl2(robot_id, joint_index, p.POSITION_CONTROL, ik_solution[joint_index])
-
-            # Simulation loop
-        #    for _ in range(10):
-        #        p.stepSimulation()
-        # Disconnect from the physics server
+        
     p.disconnect()
 
 if __name__ == "__main__":
