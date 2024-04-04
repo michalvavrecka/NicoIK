@@ -31,6 +31,12 @@ It has to output 7 joint angles in radians in repetitive manner
 
 There is robot randomly calculating IK for finger on the line
 
+**Left/right hand switch**
+
+`python ik_solver.py -g -l`
+
+The IK solver switch to left hand
+
 **Custom position**
 
 `python ik_solver.py -g -p 0.4 -0.3 0.3`
