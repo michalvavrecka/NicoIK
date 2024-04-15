@@ -16,7 +16,6 @@ RESETDELAY = 4
 # that can be called and returns the angles, this will move into global_static_vars
 ANGLE_SHIFT_WRIST_Z = 56
 ANGLE_SHIFT_WRIST_X = 120
-REALJOINTS = ['r_shoulder_z','r_shoulder_y','r_arm_x','r_elbow_y','r_wrist_z','r_wrist_x']
 FIXEDJOINTS = ['r_indexfinger_x']
 
 init_pos = { # standard position
@@ -67,8 +66,8 @@ def get_joints_limits(robot_id, num_joints,arg_dict):
             joint_name = joint_info[1]
             link_name = joint_info[12]
             if q_index > -1: # Fixed joints have q_index -1
-                joint_names.append(joint_info[1])
-                link_names.append(joint_info[12])
+                joint_names.append(joint_info[1].decode("utf-8"))
+                link_names.append(joint_info[12].decode("utf-8"))
                 joint_indices.append(joint_info[0])
                 joints_limits_l.append(joint_info[8])
                 joints_limits_u.append(joint_info[9])
@@ -94,6 +93,16 @@ def get_real_joints(robot,joints):
     print("")
     return last_position
 
+def match_joints(init_pos, joint_names):
+    actuated_joint_names = []
+    actuated_joint_init_pos = []
+    for name in init_pos.keys():
+        if name in joint_names:
+            actuated_joint_names.append((name))
+            actuated_joint_init_pos.append(init_pos[name])
+
+    return actuated_joint_names, actuated_joint_init_pos
+
 def init_robot():
     motorConfig = './nico_humanoid_upper_rh7d_ukba.json'
     try:
@@ -106,16 +115,25 @@ def init_robot():
     return robot
 
 def reset_robot(robot, init_pos):
-    
-    initial_position = get_real_joints(robot,REALJOINTS)
-    for k in safe.keys():
+    for k in init_pos.keys():
         robot.setAngle(k,init_pos[k],DEFAULT_SPEED)
     print ('Robot reseting')
     time.sleep(RESETDELAY)
-    final_position = get_real_joints(robot,REALJOINTS)
-    #print(initial_position - final_position)
-    #input("Press key to continue...")
-    return robot, initial_position, final_position
+    return robot
+
+def reset_actuated(robot, actuated_joints, actuated_initpos):
+    for joint, initpos in zip(actuated_joints, actuated_initpos):
+        robot.setAngle(joint,initpos,DEFAULT_SPEED)
+    print ('Robot reseting')
+    time.sleep(RESETDELAY)
+    return robot
+
+def spin_simulation(steps):
+    for i in range(steps):
+        p.stepSimulation()
+        time.sleep(0.01)
+
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -155,34 +173,34 @@ def main():
     num_joints = p.getNumJoints(robot_id)
     joints_limits, joints_ranges, joints_rest_poses, end_effector_index, joint_names, link_names, joint_indices = get_joints_limits(robot_id, num_joints,arg_dict)
     # Custom intital position
-    
+
     #joints_rest_poses = deg2rad([-15, 68, 2.8, 56.4, 0.0, 11.0, -70.0])
     
-    # Real robot initialization
+    actuated_joints,actuated_initpos = match_joints(init_pos,joint_names)
+
+
+    # Real robot initialization and setting all joints
     if arg_dict["real_robot"]:
         robot = init_robot()
+        robot = reset_robot(robot,init_pos)
+        actual_position = get_real_joints(robot,actuated_joints)
+        for i in range(len(joint_indices)):
+            p.resetJointState(robot_id, joint_indices[i], deg2rad(actual_position[i]))
+        spin_simulation(10)
+        print("Real robot position" + str(actual_position))
+        #print("Simulated robot position" + str([p.getJointState(robot_id, joint_indices[i]) for i in range(len(joint_indices))]))
+        input("Press key to continue...")
     else:
-        robot = None
+        for i in range(len(joint_indices)):
+            p.resetJointState(robot_id, joint_indices[i], joints_rest_poses[i])
 
-
+    
+    #Match nonfixed joints in urdf with joints in real robot
     # IK paramenters
     max_iterations = 100
     residual_threshold = 0.001
 
-    # Get the joint indices of the arm
-    
-    matching_values = {name: init_pos[name] for name in joint_names if name in init_pos}
-    print(matching_values)
-
-
-    while True:
-        #Reset robot to initial position
-        if arg_dict["initial"]:
-            if arg_dict["real_robot"]:
-                robot, inpos, finpos = reset_robot(robot,init_pos)
-
-            for i in range(len(joint_indices)):
-                p.resetJointState(robot_id, joint_indices[i], joints_rest_poses[i])
+    while True: 
         # Target position
         if arg_dict["position"]:
             target_position = arg_dict["position"]
@@ -215,10 +233,7 @@ def main():
             for i in range(len(joint_indices)):
                 p.setJointMotorControl2(robot_id, joint_indices[i], p.POSITION_CONTROL, ik_solution[i])
                 
-            for _ in range(100):
-                # Set joint angles to the IK solution
-                time.sleep(.05)
-                p.stepSimulation()
+            spin_simulation(100)
 
         else:
             for i in range(len(joint_indices)):    
@@ -241,7 +256,7 @@ def main():
             robot.setAngle('r_thumb_z', -57.0, DEFAULT_SPEED)
             robot.setAngle('r_thumb_x', 180.0, DEFAULT_SPEED)
 
-            for i,realjoint in enumerate(REALJOINTS):
+            for i,realjoint in enumerate(actuated_joints):
                 degrees = rad2deg(ik_solution[i])
                 if realjoint == 'r_wrist_z':
                     degrees += ANGLE_SHIFT_WRIST_Z
@@ -250,6 +265,15 @@ def main():
                 robot.setAngle(realjoint, degrees,DEFAULT_SPEED)
             time.sleep(SIMREALDELAY)
             # Send joint angles to real robot
+        
+        #Reset robot to initial position
+        if arg_dict["initial"]:
+            if arg_dict["real_robot"]:
+                robot = reset_actuated(robot,actuated_joints,actuated_initpos)
+
+            for i in range(len(joint_indices)):
+                p.resetJointState(robot_id, joint_indices[i], joints_rest_poses[i])
+            spin_simulation(10)
         
     p.disconnect()
 
