@@ -7,6 +7,7 @@ from nicomotion.Motion import Motion
 from utils.nicodummy import DummyRobot
 
 
+DURATION = 0.5
 DEFAULT_SPEED = 0.08
 SIMDELAY = 0.5
 SIMREALDELAY = 3
@@ -16,7 +17,6 @@ RESETDELAY = 4
 # that can be called and returns the angles, this will move into global_static_vars
 ANGLE_SHIFT_WRIST_Z = 56
 ANGLE_SHIFT_WRIST_X = 120
-FIXEDJOINTS = ['r_indexfinger_x']
 
 init_pos = { # standard position
                 'l_shoulder_z':0.0,
@@ -46,7 +46,7 @@ init_pos = { # standard position
 
 def target():
     
-    target_position = [0.25+(0.3*random.rand()),0.25+(-0.5*random.rand()), 0.05]  # Write your own method for end effector position here
+    target_position = [0.25+(0.3*random.rand()),0.25+(-0.5*random.rand()), 0.25]  # Write your own method for end effector position here
     #return [0.25, -0.2, 0.15]
     return target_position
 
@@ -128,6 +128,11 @@ def reset_actuated(robot, actuated_joints, actuated_initpos):
     time.sleep(RESETDELAY)
     return robot
 
+def speed_control(initial, target, duration):
+    
+        speed_to_reach = (abs((float(initial) - float(target)) / float(1260*duration)))
+        return speed_to_reach
+
 def spin_simulation(steps):
     for i in range(steps):
         p.stepSimulation()
@@ -189,7 +194,7 @@ def main():
         spin_simulation(10)
         print("Real robot position" + str(actual_position))
         #print("Simulated robot position" + str([p.getJointState(robot_id, joint_indices[i]) for i in range(len(joint_indices))]))
-        input("Press key to continue...")
+
     else:
         for i in range(len(joint_indices)):
             p.resetJointState(robot_id, joint_indices[i], joints_rest_poses[i])
@@ -250,6 +255,7 @@ def main():
         
         
         if arg_dict["real_robot"]:
+            
             #Set fingers of hand
             robot.setAngle('r_indexfinger_x', -180.0, DEFAULT_SPEED)
             robot.setAngle('r_middlefingers_x', 180.0, DEFAULT_SPEED)
@@ -258,11 +264,12 @@ def main():
 
             for i,realjoint in enumerate(actuated_joints):
                 degrees = rad2deg(ik_solution[i])
+                speed = speed_control(actual_position[i], degrees, DURATION)
                 if realjoint == 'r_wrist_z':
                     degrees += ANGLE_SHIFT_WRIST_Z
                 elif realjoint == 'r_wrist_x':
                     degrees += ANGLE_SHIFT_WRIST_X    
-                robot.setAngle(realjoint, degrees,DEFAULT_SPEED)
+                robot.setAngle(realjoint, degrees,speed)
             time.sleep(SIMREALDELAY)
             # Send joint angles to real robot
         
@@ -273,7 +280,7 @@ def main():
 
             for i in range(len(joint_indices)):
                 p.resetJointState(robot_id, joint_indices[i], joints_rest_poses[i])
-            spin_simulation(10)
+            spin_simulation(20)
         
     p.disconnect()
 
