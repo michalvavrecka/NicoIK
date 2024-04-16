@@ -228,8 +228,8 @@ def main():
     JointGstat=[]
     TimeGstat=[]
     
-    #for i in range(50):
-    while True: 
+    for i in range(50):
+    #while True: 
         # Target position
         if arg_dict["position"]:
             target_position = arg_dict["position"]
