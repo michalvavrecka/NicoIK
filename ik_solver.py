@@ -1,17 +1,17 @@
 import pybullet as p
 import time
-from numpy import random, rad2deg, deg2rad, set_printoptions
+from numpy import random, rad2deg, deg2rad, set_printoptions, array, linalg
 import argparse
 
 from nicomotion.Motion import Motion
 from utils.nicodummy import DummyRobot
 
 
-DURATION = 0.5
+DURATION = 1
 DEFAULT_SPEED = 0.08
 SIMDELAY = 0.5
-SIMREALDELAY = 3
-RESETDELAY = 4
+RESETTHRESHOLD = 10
+
 # Once the coordinate system is fixed and all that, 
 # when the code is extracted into a compact version for my project
 # that can be called and returns the angles, this will move into global_static_vars
@@ -42,6 +42,9 @@ init_pos = { # standard position
                 'head_z':0.0,
                 'head_y':0.0
             }
+
+set_printoptions(precision=1)
+set_printoptions(suppress=True)
 
 
 def target():
@@ -85,12 +88,15 @@ def get_joints_limits(robot_id, num_joints,arg_dict):
 
 
 def get_real_joints(robot,joints):
+    
     last_position= []
+    
     for k in joints:
         actual=robot.getAngle(k)
-        print("{} : {}, ".format(k,actual),end="")
+        #print("{} : {}, ".format(k,actual),end="")
         last_position.append(actual)
-    print("")
+    #print("")
+    
     return last_position
 
 def match_joints(init_pos, joint_names):
@@ -107,25 +113,32 @@ def init_robot():
     motorConfig = './nico_humanoid_upper_rh7d_ukba.json'
     try:
         robot = Motion(motorConfig=motorConfig)
+        print('Robot initialized')
     except:
         robot = DummyRobot()
-        print('motors are not operational')
+        print('Motors are not operational')
     
-    time.sleep(RESETDELAY)
     return robot
 
 def reset_robot(robot, init_pos):
+
     for k in init_pos.keys():
         robot.setAngle(k,init_pos[k],DEFAULT_SPEED)
-    print ('Robot reseting')
-    time.sleep(RESETDELAY)
+    
+    time = check_execution(robot, init_pos.keys(), list(init_pos.values()))
+    print ('Robot reset in {:.2f} seconds.'.format(time))  
+
     return robot
 
 def reset_actuated(robot, actuated_joints, actuated_initpos):
+
     for joint, initpos in zip(actuated_joints, actuated_initpos):
         robot.setAngle(joint,initpos,DEFAULT_SPEED)
-    print ('Robot reseting')
-    time.sleep(RESETDELAY)
+    
+    time = check_execution(robot, actuated_joints, actuated_initpos)
+    reset_pos = get_real_joints(robot,actuated_joints)
+    difference = array(actuated_initpos) - array(reset_pos)
+    print('Actuator reset in {:.2f}s, Error: {}'.format(time, ['{:.2f}'.format(diff) for diff in difference])) 
     return robot
 
 def speed_control(initial, target, duration):
@@ -137,6 +150,20 @@ def spin_simulation(steps):
     for i in range(steps):
         p.stepSimulation()
         time.sleep(0.01)
+
+def check_execution (robot, joints, target):
+    tic = time.time()
+    distance = 100
+
+    while distance > RESETTHRESHOLD:
+        actual = get_real_joints(robot,joints)
+        #print(timestamp)
+        diff = array(target) - array(actual)
+        distance = linalg.norm(diff)
+        print('Duration: {:.2f}, Error: {:.2f}'.format(time.time()-tic,distance), end='\r')
+        time.sleep(0.1)
+    toc = time.time()
+    return toc-tic
 
 
 
@@ -192,15 +219,11 @@ def main():
         for i in range(len(joint_indices)):
             p.resetJointState(robot_id, joint_indices[i], deg2rad(actual_position[i]))
         spin_simulation(10)
-        print("Real robot position" + str(actual_position))
-        #print("Simulated robot position" + str([p.getJointState(robot_id, joint_indices[i]) for i in range(len(joint_indices))]))
 
     else:
         for i in range(len(joint_indices)):
             p.resetJointState(robot_id, joint_indices[i], joints_rest_poses[i])
 
-    
-    #Match nonfixed joints in urdf with joints in real robot
     # IK paramenters
     max_iterations = 100
     residual_threshold = 0.001
@@ -243,12 +266,13 @@ def main():
         else:
             for i in range(len(joint_indices)):    
                 p.resetJointState(robot_id, joint_indices[i], ik_solution[i])
-            time.sleep(SIMDELAY)
+            spin_simulation(10)
+
         
         
         
         
-        print(rad2deg(ik_solution))
+        #print(rad2deg(ik_solution))
         
         
         
@@ -256,6 +280,7 @@ def main():
         
         if arg_dict["real_robot"]:
             
+            targetdeg = []
             #Set fingers of hand
             robot.setAngle('r_indexfinger_x', -180.0, DEFAULT_SPEED)
             robot.setAngle('r_middlefingers_x', 180.0, DEFAULT_SPEED)
@@ -268,10 +293,19 @@ def main():
                 if realjoint == 'r_wrist_z':
                     degrees += ANGLE_SHIFT_WRIST_Z
                 elif realjoint == 'r_wrist_x':
-                    degrees += ANGLE_SHIFT_WRIST_X    
+                    degrees += ANGLE_SHIFT_WRIST_X  
+                speed = speed_control(actual_position[i], degrees, DURATION)  
                 robot.setAngle(realjoint, degrees,speed)
-            time.sleep(SIMREALDELAY)
-            # Send joint angles to real robot
+                targetdeg.append(degrees)
+
+            time = check_execution(robot, actuated_joints, targetdeg)     
+            set_printoptions(precision=1)
+            set_printoptions(suppress=True)
+            final_pos = get_real_joints(robot,actuated_joints)
+            difference = array(targetdeg) - array(final_pos)
+            print('Actuator set in {:.2f}s, Error: {}'.format(time, ['{:.2f}'.format(diff) for diff in difference])) 
+
+
         
         #Reset robot to initial position
         if arg_dict["initial"]:
