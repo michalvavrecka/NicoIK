@@ -9,7 +9,7 @@ from nicomotion.Motion import Motion
 from utils.nicodummy import DummyRobot
 
 
-DURATION = 1
+DURATION = 3
 DEFAULT_SPEED = 0.08
 RESETTHRESHOLD = 10
 
@@ -228,7 +228,7 @@ def main():
     JointGstat=[]
     TimeGstat=[]
     
-    for i in range(50):
+    for i in range(30):
     #while True: 
         # Target position
         if arg_dict["position"]:
@@ -241,6 +241,19 @@ def main():
                           baseCollisionShapeIndex= -1, baseMass=0,basePosition=target_position)
         
 
+        #Reset robot to initial position
+        if arg_dict["initial"]:
+            if arg_dict["real_robot"]:
+                robot,time = reset_actuated(robot,actuated_joints,actuated_initpos)
+                reset_pos = get_real_joints(robot,actuated_joints)
+                difference = array(actuated_initpos) - array(reset_pos)
+                print('RealNICO init: {:.2f}s, Error: {}'.format(time, ['{:.2f}'.format(diff) for diff in difference])) 
+                JointIstat.append(difference)
+                TimeIstat.append(time)
+            for i in range(len(joint_indices)):
+                p.resetJointState(robot_id, joint_indices[i], joints_rest_poses[i])
+            spin_simulation(50)
+        
         #target_orientation = target_position + [1]
         # Perform IK
         #ik_solution = p.calculateInverseKinematics(robot_id, end_effector_index, target_position,
@@ -305,19 +318,6 @@ def main():
             JointGstat.append(difference)
             TimeGstat.append(time)
 
-        
-        #Reset robot to initial position
-        if arg_dict["initial"]:
-            if arg_dict["real_robot"]:
-                robot,time = reset_actuated(robot,actuated_joints,actuated_initpos)
-                reset_pos = get_real_joints(robot,actuated_joints)
-                difference = array(actuated_initpos) - array(reset_pos)
-                print('RealNICO init: {:.2f}s, Error: {}'.format(time, ['{:.2f}'.format(diff) for diff in difference])) 
-                JointIstat.append(difference)
-                TimeIstat.append(time)
-            for i in range(len(joint_indices)):
-                p.resetJointState(robot_id, joint_indices[i], joints_rest_poses[i])
-            spin_simulation(50)
 
     # Create a new figure
     di = pd.DataFrame({'JointIstat': JointIstat})
