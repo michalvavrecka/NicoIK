@@ -2,6 +2,8 @@ import pybullet as p
 import time
 from numpy import random, rad2deg, deg2rad, set_printoptions, array, linalg
 import argparse
+import matplotlib.pyplot as plt
+import pandas as pd
 
 from nicomotion.Motion import Motion
 from utils.nicodummy import DummyRobot
@@ -9,7 +11,6 @@ from utils.nicodummy import DummyRobot
 
 DURATION = 1
 DEFAULT_SPEED = 0.08
-SIMDELAY = 0.5
 RESETTHRESHOLD = 10
 
 # Once the coordinate system is fixed and all that, 
@@ -35,15 +36,15 @@ init_pos = { # standard position
                 'r_elbow_y':60,
                 'r_wrist_z':0,
                 'r_wrist_x':0,
-                'r_thumb_z':-57.0,
-                'r_thumb_x':180.0,
-                'r_indexfinger_x':-180.0,
+                'r_thumb_z':-180.0,
+                'r_thumb_x':-180.0,
+                'r_indexfinger_x':0,
                 'r_middlefingers_x':180.0,
                 'head_z':0.0,
                 'head_y':0.0
             }
 
-set_printoptions(precision=1)
+set_printoptions(precision=3)
 set_printoptions(suppress=True)
 
 
@@ -136,10 +137,8 @@ def reset_actuated(robot, actuated_joints, actuated_initpos):
         robot.setAngle(joint,initpos,DEFAULT_SPEED)
     
     time = check_execution(robot, actuated_joints, actuated_initpos)
-    reset_pos = get_real_joints(robot,actuated_joints)
-    difference = array(actuated_initpos) - array(reset_pos)
-    print('Actuator reset in {:.2f}s, Error: {}'.format(time, ['{:.2f}'.format(diff) for diff in difference])) 
-    return robot
+
+    return robot, time
 
 def speed_control(initial, target, duration):
     
@@ -176,11 +175,6 @@ def main():
     parser.add_argument("-l", "--left", action="store_true", help="If set, use left hand IK")
     parser.add_argument("-i", "--initial", action="store_true", help="If set, reset the robot to the initial position after each postion")
     arg_dict = vars(parser.parse_args())
-    
-
-    set_printoptions(precision=1)
-    set_printoptions(suppress=True)
-
 
     # GUI initialization
     if arg_dict["gui"]:
@@ -228,6 +222,13 @@ def main():
     max_iterations = 100
     residual_threshold = 0.001
 
+    IKstat=[]
+    JointIstat=[]
+    TimeIstat=[]
+    JointGstat=[]
+    TimeGstat=[]
+    
+    #for i in range(50):
     while True: 
         # Target position
         if arg_dict["position"]:
@@ -266,26 +267,25 @@ def main():
         else:
             for i in range(len(joint_indices)):    
                 p.resetJointState(robot_id, joint_indices[i], ik_solution[i])
-            spin_simulation(10)
+            spin_simulation(50)
 
         
-        
-        
-        
-        #print(rad2deg(ik_solution))
-        
-        
-        
-        
+        #Calculate IK solution error
+
+        (x,y,z), (a,b,c,d),_,_,_,_ = p.getLinkState(robot_id, end_effector_index) 
+        IKdiff = (array(target_position) - array([x,y,z]))
+        print('SimNico target_pos: {}'.format(target_position)) 
+        print('SimNico IK error: {}'.format(IKdiff)) 
+        IKstat.append(IKdiff)
         
         if arg_dict["real_robot"]:
             
             targetdeg = []
             #Set fingers of hand
-            robot.setAngle('r_indexfinger_x', -180.0, DEFAULT_SPEED)
-            robot.setAngle('r_middlefingers_x', 180.0, DEFAULT_SPEED)
-            robot.setAngle('r_thumb_z', -57.0, DEFAULT_SPEED)
-            robot.setAngle('r_thumb_x', 180.0, DEFAULT_SPEED)
+            #robot.setAngle('r_indexfinger_x', -180.0, DEFAULT_SPEED)
+            #robot.setAngle('r_middlefingers_x', 180.0, DEFAULT_SPEED)
+            #robot.setAngle('r_thumb_z', -57.0, DEFAULT_SPEED)
+            #robot.setAngle('r_thumb_x', 180.0, DEFAULT_SPEED)
 
             for i,realjoint in enumerate(actuated_joints):
                 degrees = rad2deg(ik_solution[i])
@@ -294,29 +294,51 @@ def main():
                     degrees += ANGLE_SHIFT_WRIST_Z
                 elif realjoint == 'r_wrist_x':
                     degrees += ANGLE_SHIFT_WRIST_X  
-                speed = speed_control(actual_position[i], degrees, DURATION)  
                 robot.setAngle(realjoint, degrees,speed)
                 targetdeg.append(degrees)
 
             time = check_execution(robot, actuated_joints, targetdeg)     
-            set_printoptions(precision=1)
-            set_printoptions(suppress=True)
+
             final_pos = get_real_joints(robot,actuated_joints)
             difference = array(targetdeg) - array(final_pos)
-            print('Actuator set in {:.2f}s, Error: {}'.format(time, ['{:.2f}'.format(diff) for diff in difference])) 
-
+            print('RealNICO goal: {:.2f}s, Error: {}'.format(time, ['{:.2f}'.format(diff) for diff in difference])) 
+            JointGstat.append(difference)
+            TimeGstat.append(time)
 
         
         #Reset robot to initial position
         if arg_dict["initial"]:
             if arg_dict["real_robot"]:
-                robot = reset_actuated(robot,actuated_joints,actuated_initpos)
-
+                robot,time = reset_actuated(robot,actuated_joints,actuated_initpos)
+                reset_pos = get_real_joints(robot,actuated_joints)
+                difference = array(actuated_initpos) - array(reset_pos)
+                print('RealNICO init: {:.2f}s, Error: {}'.format(time, ['{:.2f}'.format(diff) for diff in difference])) 
+                JointIstat.append(difference)
+                TimeIstat.append(time)
             for i in range(len(joint_indices)):
                 p.resetJointState(robot_id, joint_indices[i], joints_rest_poses[i])
-            spin_simulation(20)
-        
+            spin_simulation(50)
+
+    # Create a new figure
+    di = pd.DataFrame({'JointIstat': JointIstat})
+    dg = pd.DataFrame({'JointGstat': JointGstat})
+    dt = pd.DataFrame({'TimeIstat': TimeIstat,'TimeGstat': TimeGstat})
+    dik = pd.DataFrame({'IKstat': IKstat})
+    # Create boxplots
+    #di.boxplot(column=['JointIstat'])
+
+    # Show the figure
+    di.to_csv('i_joint_stat.csv', index=False)
+    dg.to_csv('g_joint_stat.csv', index=False)
+    dt.to_csv('time_stat.csv', index=False)
+    dik.to_csv('ik_stat.csv', index=False)  
+    #plt.savefig('boxplot.png')
+
+    input('Press enter to exit')
+
     p.disconnect()
+
+
 
 if __name__ == "__main__":
     
