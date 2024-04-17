@@ -8,10 +8,12 @@ import pandas as pd
 from nicomotion.Motion import Motion
 from utils.nicodummy import DummyRobot
 
-
-DURATION = 3
-DEFAULT_SPEED = 0.08
-RESETTHRESHOLD = 10
+# Set trial duration in seconds
+DURATION = 1
+# Set speed to reseti to initial position
+RESET_SPEED = 0.1
+# Acccuracy (vector distance) to consider the target positon reached
+ACCURACY = 10
 
 # Once the coordinate system is fixed and all that, 
 # when the code is extracted into a compact version for my project
@@ -50,9 +52,26 @@ set_printoptions(suppress=True)
 
 def target():
     
-    target_position = [0.25+(0.3*random.rand()),0.25+(-0.5*random.rand()), 0.25]  # Write your own method for end effector position here
+    target_position = [0.20+(0.25*random.rand()),0.0+(-0.25*random.rand()), 0.08]  # Write your own method for end effector position here
     #return [0.25, -0.2, 0.15]
     return target_position
+
+def target_calibration(index):
+    
+    calibration_matrix =   [[0.245, -0.260, 0.043],
+                            [0.305, -0.260, 0.043],
+                            [0.365, -0.260, 0.043],
+                            [0.365, -0.130, 0.043],
+                            [0.365, 0.000, 0.043],
+                            [0.305, 0.00, 0.043],
+                            [0.245, 0.00, 0.043],
+                            [0.245, -0.130, 0.043],
+                            [0.245, -0.260, 0.043]]
+    
+    if index >= len(calibration_matrix):
+        exit()
+                          # Write your own method for end effector position here
+    return calibration_matrix[index]
 
 def get_joints_limits(robot_id, num_joints,arg_dict):
         """
@@ -124,21 +143,15 @@ def init_robot():
 def reset_robot(robot, init_pos):
 
     for k in init_pos.keys():
-        robot.setAngle(k,init_pos[k],DEFAULT_SPEED)
-    
-    time = check_execution(robot, init_pos.keys(), list(init_pos.values()))
-    print ('Robot reset in {:.2f} seconds.'.format(time))  
+        robot.setAngle(k,init_pos[k],RESET_SPEED)
 
     return robot
 
 def reset_actuated(robot, actuated_joints, actuated_initpos):
 
     for joint, initpos in zip(actuated_joints, actuated_initpos):
-        robot.setAngle(joint,initpos,DEFAULT_SPEED)
-    
-    time = check_execution(robot, actuated_joints, actuated_initpos)
-
-    return robot, time
+        robot.setAngle(joint,initpos,RESET_SPEED)    
+    return robot
 
 def speed_control(initial, target, duration):
     
@@ -154,7 +167,7 @@ def check_execution (robot, joints, target):
     tic = time.time()
     distance = 100
 
-    while distance > RESETTHRESHOLD:
+    while distance > ACCURACY:
         actual = get_real_joints(robot,joints)
         #print(timestamp)
         diff = array(target) - array(actual)
@@ -174,12 +187,13 @@ def main():
     parser.add_argument("-g", "--gui", action="store_true", help="If set, turn the GUI on")
     parser.add_argument("-l", "--left", action="store_true", help="If set, use left hand IK")
     parser.add_argument("-i", "--initial", action="store_true", help="If set, reset the robot to the initial position after each postion")
+    parser.add_argument("-c", "--calibration", action="store_true", help="If set, execute calibration positions")
     arg_dict = vars(parser.parse_args())
 
     # GUI initialization
     if arg_dict["gui"]:
         p.connect(p.GUI)
-        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1)
+        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
         p.resetDebugVisualizerCamera(cameraDistance=1, cameraYaw=90, cameraPitch=-40, cameraTargetPosition=[0, 0, 0])
     else:
         p.connect(p.DIRECT)
@@ -209,19 +223,23 @@ def main():
     if arg_dict["real_robot"]:
         robot = init_robot()
         robot = reset_robot(robot,init_pos)
+        time = check_execution(robot, init_pos.keys(), list(init_pos.values()))
+        print ('Robot reset in {:.2f} seconds.'.format(time))  
         actual_position = get_real_joints(robot,actuated_joints)
         for i in range(len(joint_indices)):
             p.resetJointState(robot_id, joint_indices[i], deg2rad(actual_position[i]))
-        spin_simulation(10)
+        spin_simulation(50)
 
     else:
         for i in range(len(joint_indices)):
             p.resetJointState(robot_id, joint_indices[i], joints_rest_poses[i])
+        spin_simulation(50)
 
     # IK paramenters
     max_iterations = 100
     residual_threshold = 0.001
 
+    # Statistics
     IKstat=[]
     JointIstat=[]
     TimeIstat=[]
@@ -233,6 +251,8 @@ def main():
         # Target position
         if arg_dict["position"]:
             target_position = arg_dict["position"]
+        elif arg_dict["calibration"]:
+            target_position = target_calibration(i)
         else:
             target_position = target()
         
@@ -244,7 +264,8 @@ def main():
         #Reset robot to initial position
         if arg_dict["initial"]:
             if arg_dict["real_robot"]:
-                robot,time = reset_actuated(robot,actuated_joints,actuated_initpos)
+                robot = reset_actuated(robot,actuated_joints,actuated_initpos)
+                time = check_execution(robot, actuated_joints, actuated_initpos)
                 reset_pos = get_real_joints(robot,actuated_joints)
                 difference = array(actuated_initpos) - array(reset_pos)
                 print('RealNICO init: {:.2f}s, Error: {}'.format(time, ['{:.2f}'.format(diff) for diff in difference])) 
@@ -252,7 +273,7 @@ def main():
                 TimeIstat.append(time)
             for i in range(len(joint_indices)):
                 p.resetJointState(robot_id, joint_indices[i], joints_rest_poses[i])
-            spin_simulation(50)
+            spin_simulation(20)
         
         #target_orientation = target_position + [1]
         # Perform IK
@@ -280,7 +301,7 @@ def main():
         else:
             for i in range(len(joint_indices)):    
                 p.resetJointState(robot_id, joint_indices[i], ik_solution[i])
-            spin_simulation(50)
+            spin_simulation(100)
 
         
         #Calculate IK solution error
@@ -294,11 +315,6 @@ def main():
         if arg_dict["real_robot"]:
             
             targetdeg = []
-            #Set fingers of hand
-            #robot.setAngle('r_indexfinger_x', -180.0, DEFAULT_SPEED)
-            #robot.setAngle('r_middlefingers_x', 180.0, DEFAULT_SPEED)
-            #robot.setAngle('r_thumb_z', -57.0, DEFAULT_SPEED)
-            #robot.setAngle('r_thumb_x', 180.0, DEFAULT_SPEED)
 
             for i,realjoint in enumerate(actuated_joints):
                 degrees = rad2deg(ik_solution[i])
@@ -311,7 +327,6 @@ def main():
                 targetdeg.append(degrees)
 
             time = check_execution(robot, actuated_joints, targetdeg)     
-
             final_pos = get_real_joints(robot,actuated_joints)
             difference = array(targetdeg) - array(final_pos)
             print('RealNICO goal: {:.2f}s, Error: {}'.format(time, ['{:.2f}'.format(diff) for diff in difference])) 
