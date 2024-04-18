@@ -65,4 +65,8 @@ It will initialize robot to default position and then execute the motion from IK
 
 If you want to put custom trajectory or other methods (from x,y,z to joint angles) write it to the target method instead of random generator
 
+**Calibration matrix**
 
+`python ik_solver.py -g -c -i -a`
+
+[![Video1](https://img.youtube.com/vi/YWLnepOwRhc/maxresdefault.jpg)](https://youtu.be/YWLnepOwRhc)
