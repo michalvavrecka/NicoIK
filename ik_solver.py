@@ -8,12 +8,12 @@ import pandas as pd
 from nicomotion.Motion import Motion
 from utils.nicodummy import DummyRobot
 
-# Set trial duration in seconds
-DURATION = 1
+
 # Set speed to reseti to initial position
-RESET_SPEED = 0.1
+RESET_SPEED = 0.01
 # Acccuracy (vector distance) to consider the target positon reached
-ACCURACY = 10
+ACCURACY = 5
+
 
 # Once the coordinate system is fixed and all that, 
 # when the code is extracted into a compact version for my project
@@ -52,7 +52,7 @@ set_printoptions(suppress=True)
 
 def target():
     
-    target_position = [0.20+(0.25*random.rand()),0.0+(-0.25*random.rand()), 0.08]  # Write your own method for end effector position here
+    target_position = [0.30+(0.25*random.rand()),0.0+(-0.25*random.rand()), 0.08]  # Write your own method for end effector position here
     #return [0.25, -0.2, 0.15]
     return target_position
 
@@ -161,7 +161,8 @@ def speed_control(initial, target, duration):
 def spin_simulation(steps):
     for i in range(steps):
         p.stepSimulation()
-        time.sleep(0.01)
+        time.sleep(0.01
+        )
 
 def check_execution (robot, joints, target):
     tic = time.time()
@@ -187,13 +188,16 @@ def main():
     parser.add_argument("-g", "--gui", action="store_true", help="If set, turn the GUI on")
     parser.add_argument("-l", "--left", action="store_true", help="If set, use left hand IK")
     parser.add_argument("-i", "--initial", action="store_true", help="If set, reset the robot to the initial position after each postion")
+    parser.add_argument("-t", "--trajectory", action="store_true", help="Store coordinates from simulation into text file")
     parser.add_argument("-c", "--calibration", action="store_true", help="If set, execute calibration positions")
+    parser.add_argument("-s", "--speed", type=float, default = 1, help="Speed of arm movement in simulator")
+    parser.add_argument("-d", "--duration", type=float, default = 1, help="Duration of movement in si/real robot")
     arg_dict = vars(parser.parse_args())
 
     # GUI initialization
     if arg_dict["gui"]:
         p.connect(p.GUI)
-        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
+        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1)
         p.resetDebugVisualizerCamera(cameraDistance=1, cameraYaw=90, cameraPitch=-40, cameraTargetPosition=[0, 0, 0])
     else:
         p.connect(p.DIRECT)
@@ -245,6 +249,9 @@ def main():
     TimeIstat=[]
     JointGstat=[]
     TimeGstat=[]
+    state = []
+    trajectory = []
+    finished = False
     
     for i in range(30):
     #while True: 
@@ -294,9 +301,33 @@ def main():
         
         if arg_dict["animate"]:
             for i in range(len(joint_indices)):
-                p.setJointMotorControl2(robot_id, joint_indices[i], p.POSITION_CONTROL, ik_solution[i])
-                
-            spin_simulation(100)
+                                    
+                p.setJointMotorControl2(robot_id, joint_indices[i],
+                                        p.POSITION_CONTROL, ik_solution[i],
+                                        maxVelocity=arg_dict["speed"],
+                                        positionGain=0.7,
+                                        velocityGain=0.3)
+            step = 1
+            while not finished:
+                for i in range(len(joint_indices)):
+                        state.append(p.getJointState(robot_id,joint_indices[i])[0])
+                simdiff = rad2deg(array(ik_solution)) - rad2deg(array(state))
+                print('SimNICO, Step: {}, Error: {}'.format(step, ['{:.2f}'.format(diff) for diff in simdiff])) 
+                if linalg.norm(simdiff) <= ACCURACY:
+                    finished = True
+                if arg_dict["trajectory"]:
+                    trajectory.append(state)
+                spin_simulation(1)
+                state = []
+                step += 1
+            #sAVE TRAJECTORY AS TEXT FILE 
+            if arg_dict["trajectory"]:
+                filename = 'trajectory_'+str(i)+'.txt'
+                with open(filename, 'w') as f:
+                    for item in trajectory:
+                        f.write("%s\n" % item)
+
+            finished = False
 
         else:
             for i in range(len(joint_indices)):    
@@ -318,7 +349,7 @@ def main():
 
             for i,realjoint in enumerate(actuated_joints):
                 degrees = rad2deg(ik_solution[i])
-                speed = speed_control(actual_position[i], degrees, DURATION)
+                speed = speed_control(actual_position[i], degrees, arg_dict["duration"])
                 if realjoint == 'r_wrist_z':
                     degrees += ANGLE_SHIFT_WRIST_Z
                 elif realjoint == 'r_wrist_x':
