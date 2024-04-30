@@ -5,7 +5,7 @@ import argparse
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from nicomotion.Motion import Motion
+# from nicomotion.Motion import Motion
 from utils.nicodummy import DummyRobot
 
 
@@ -58,15 +58,15 @@ def target():
 
 def target_calibration(index):
     
-    calibration_matrix =   [[0.245, -0.260, 0.043],
-                            [0.305, -0.260, 0.043],
-                            [0.365, -0.260, 0.043],
-                            [0.365, -0.130, 0.043],
-                            [0.365, 0.000, 0.043],
-                            [0.305, 0.00, 0.043],
-                            [0.245, 0.00, 0.043],
-                            [0.245, -0.130, 0.043],
-                            [0.245, -0.260, 0.043]]
+    calibration_matrix =   [[0.345, -0.260, 0.043],
+                            [0.405, -0.260, 0.043],
+                            [0.465, -0.260, 0.043],
+                            [0.465, -0.130, 0.043],
+                            [0.465, 0.000, 0.043],
+                            [0.405, 0.00, 0.043],
+                            [0.345, 0.00, 0.043],
+                            [0.345, -0.130, 0.043],
+                            [0.345, -0.260, 0.043]]
     
     if index >= len(calibration_matrix):
         exit()
@@ -192,12 +192,13 @@ def main():
     parser.add_argument("-c", "--calibration", action="store_true", help="If set, execute calibration positions")
     parser.add_argument("-s", "--speed", type=float, default = 1, help="Speed of arm movement in simulator")
     parser.add_argument("-d", "--duration", type=float, default = 1, help="Duration of movement in si/real robot")
+    parser.add_argument("-ts", "--trajectory_steps", type=int, default=5, help="Number of steps in each trajectory")
     arg_dict = vars(parser.parse_args())
 
     # GUI initialization
     if arg_dict["gui"]:
         p.connect(p.GUI)
-        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1)
+        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
         p.resetDebugVisualizerCamera(cameraDistance=1, cameraYaw=90, cameraPitch=-40, cameraTargetPosition=[0, 0, 0])
     else:
         p.connect(p.DIRECT)
@@ -278,8 +279,8 @@ def main():
                 print('RealNICO init: {:.2f}s, Error: {}'.format(time, ['{:.2f}'.format(diff) for diff in difference])) 
                 JointIstat.append(difference)
                 TimeIstat.append(time)
-            for i in range(len(joint_indices)):
-                p.resetJointState(robot_id, joint_indices[i], joints_rest_poses[i])
+            for j in range(len(joint_indices)):
+                p.resetJointState(robot_id, joint_indices[j], joints_rest_poses[j])
             spin_simulation(20)
         
         #target_orientation = target_position + [1]
@@ -300,17 +301,18 @@ def main():
         
         
         if arg_dict["animate"]:
-            for i in range(len(joint_indices)):
+            for j in range(len(joint_indices)):
                                     
-                p.setJointMotorControl2(robot_id, joint_indices[i],
-                                        p.POSITION_CONTROL, ik_solution[i],
+                p.setJointMotorControl2(robot_id, joint_indices[j],
+                                        p.POSITION_CONTROL, ik_solution[j],
                                         maxVelocity=arg_dict["speed"],
+                                        force=500,
                                         positionGain=0.7,
                                         velocityGain=0.3)
             step = 1
             while not finished:
-                for i in range(len(joint_indices)):
-                        state.append(p.getJointState(robot_id,joint_indices[i])[0])
+                for j in range(len(joint_indices)):
+                    state.append(p.getJointState(robot_id,joint_indices[j])[0])
                 simdiff = rad2deg(array(ik_solution)) - rad2deg(array(state))
                 print('SimNICO, Step: {}, Error: {}'.format(step, ['{:.2f}'.format(diff) for diff in simdiff])) 
                 if linalg.norm(simdiff) <= ACCURACY:
@@ -320,18 +322,20 @@ def main():
                 spin_simulation(1)
                 state = []
                 step += 1
-            #sAVE TRAJECTORY AS TEXT FILE 
+            #SAVE TRAJECTORY AS TEXT FILE
             if arg_dict["trajectory"]:
-                filename = 'trajectory_'+str(i)+'.txt'
+                filename = 'trajectories/trajectory_'+str(i)+'.txt'
                 with open(filename, 'w') as f:
-                    for item in trajectory:
-                        f.write("%s\n" % item)
+                    steps = arg_dict["trajectory_steps"]
+                    i_dif = (len(trajectory) - 1) / (steps - 1)
+                    for j in range(steps):
+                        f.write("%s\n" % trajectory[int(j*i_dif)])
 
             finished = False
 
         else:
-            for i in range(len(joint_indices)):    
-                p.resetJointState(robot_id, joint_indices[i], ik_solution[i])
+            for j in range(len(joint_indices)):
+                p.resetJointState(robot_id, joint_indices[j], ik_solution[j])
             spin_simulation(100)
 
         
@@ -385,7 +389,5 @@ def main():
     p.disconnect()
 
 
-
 if __name__ == "__main__":
-    
     main()
