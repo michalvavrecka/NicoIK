@@ -8,9 +8,10 @@ import pandas as pd
 from nicomotion.Motion import Motion
 from utils.nicodummy import DummyRobot
 
+#from TouchAgent import TouchAgent
 
 # Set speed to reseti to initial position
-RESET_SPEED = 0.01
+RESET_SPEED = 0.05
 # Acccuracy (vector distance) to consider the target positon reached
 ACCURACY = 5
 
@@ -40,7 +41,7 @@ init_pos = { # standard position
                 'r_wrist_x':0,
                 'r_thumb_z':-180.0,
                 'r_thumb_x':-180.0,
-                'r_indexfinger_x':0,
+                'r_indexfinger_x':-90,
                 'r_middlefingers_x':180.0,
                 'head_z':0.0,
                 'head_y':0.0
@@ -56,7 +57,7 @@ def target():
     #return [0.25, -0.2, 0.15]
     return target_position
 
-def target_calibration(index):
+def target_calibration2(index):
     
     calibration_matrix =   [[0.245, -0.260, 0.043],
                             [0.305, -0.260, 0.043],
@@ -67,9 +68,19 @@ def target_calibration(index):
                             [0.245, 0.00, 0.043],
                             [0.245, -0.130, 0.043],
                             [0.245, -0.260, 0.043]]
+
+def target_calibration(index):
+    
+    calibration_matrix =   [[0.45, -.05, 0.062],
+                            [0.38, -0.0, 0.042],
+                            [0.50, 0.05, 0.083],
+                            [0.65, 0.03, 0.085],
+                            [0.58, -.08, 0.09],
+                            [0.43, -.14, 0.06],
+                            [0.36, -.075, 0.035]]
     
     if index >= len(calibration_matrix):
-        exit()
+        index = 1
                           # Write your own method for end effector position here
     return calibration_matrix[index]
 
@@ -191,13 +202,17 @@ def main():
     parser.add_argument("-t", "--trajectory", action="store_true", help="Store coordinates from simulation into text file")
     parser.add_argument("-c", "--calibration", action="store_true", help="If set, execute calibration positions")
     parser.add_argument("-s", "--speed", type=float, default = 1, help="Speed of arm movement in simulator")
-    parser.add_argument("-d", "--duration", type=float, default = 1, help="Duration of movement in si/real robot")
+    parser.add_argument("-d", "--duration", type=float, default = 1 , help="Duration of movement in si/real robot")
     arg_dict = vars(parser.parse_args())
+
+
+    #TouchAgent()
+    #TouchAgent.clean()
 
     # GUI initialization
     if arg_dict["gui"]:
         p.connect(p.GUI)
-        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1)
+        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
         p.resetDebugVisualizerCamera(cameraDistance=1, cameraYaw=90, cameraPitch=-40, cameraTargetPosition=[0, 0, 0])
     else:
         p.connect(p.DIRECT)
@@ -227,8 +242,8 @@ def main():
     if arg_dict["real_robot"]:
         robot = init_robot()
         robot = reset_robot(robot,init_pos)
-        time = check_execution(robot, init_pos.keys(), list(init_pos.values()))
-        print ('Robot reset in {:.2f} seconds.'.format(time))  
+        time_res = check_execution(robot, init_pos.keys(), list(init_pos.values()))
+        print ('Robot reset in {:.2f} seconds.'.format(time_res))  
         actual_position = get_real_joints(robot,actuated_joints)
         for i in range(len(joint_indices)):
             p.resetJointState(robot_id, joint_indices[i], deg2rad(actual_position[i]))
@@ -272,12 +287,12 @@ def main():
         if arg_dict["initial"]:
             if arg_dict["real_robot"]:
                 robot = reset_actuated(robot,actuated_joints,actuated_initpos)
-                time = check_execution(robot, actuated_joints, actuated_initpos)
+                time_res = check_execution(robot, actuated_joints, actuated_initpos)
                 reset_pos = get_real_joints(robot,actuated_joints)
                 difference = array(actuated_initpos) - array(reset_pos)
-                print('RealNICO init: {:.2f}s, Error: {}'.format(time, ['{:.2f}'.format(diff) for diff in difference])) 
+                print('RealNICO init: {:.2f}s, Error: {}'.format(time_res, ['{:.2f}'.format(diff) for diff in difference])) 
                 JointIstat.append(difference)
-                TimeIstat.append(time)
+                TimeIstat.append(time_res)
             for i in range(len(joint_indices)):
                 p.resetJointState(robot_id, joint_indices[i], joints_rest_poses[i])
             spin_simulation(20)
@@ -312,7 +327,7 @@ def main():
                 for i in range(len(joint_indices)):
                         state.append(p.getJointState(robot_id,joint_indices[i])[0])
                 simdiff = rad2deg(array(ik_solution)) - rad2deg(array(state))
-                print('SimNICO, Step: {}, Error: {}'.format(step, ['{:.2f}'.format(diff) for diff in simdiff])) 
+                print('SimNICO, Step: {}, Error: {}'.format(step, ['{:.2f}'.format(diff) for diff in simdiff],end='\r')) 
                 if linalg.norm(simdiff) <= ACCURACY:
                     finished = True
                 if arg_dict["trajectory"]:
@@ -356,13 +371,13 @@ def main():
                     degrees += ANGLE_SHIFT_WRIST_X  
                 robot.setAngle(realjoint, degrees,speed)
                 targetdeg.append(degrees)
-
-            time = check_execution(robot, actuated_joints, targetdeg)     
+            #time.sleep(arg_dict['duration'])
+            time_ex = check_execution(robot, actuated_joints, targetdeg)     
             final_pos = get_real_joints(robot,actuated_joints)
             difference = array(targetdeg) - array(final_pos)
-            print('RealNICO goal: {:.2f}s, Error: {}'.format(time, ['{:.2f}'.format(diff) for diff in difference])) 
+            print('RealNICO goal: {:.2f}s, Error: {}'.format(time_ex, ['{:.2f}'.format(diff) for diff in difference])) 
             JointGstat.append(difference)
-            TimeGstat.append(time)
+            TimeGstat.append(time_ex)
 
 
     # Create a new figure
