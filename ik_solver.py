@@ -251,7 +251,6 @@ def main():
     JointGstat=[]
     TimeGstat=[]
     state = []
-    trajectory = []
     finished = False
     
     for i in range(30):
@@ -298,7 +297,8 @@ def main():
                                                        restPoses=joints_rest_poses,
                                                        maxNumIterations=max_iterations,
                                                        residualThreshold=residual_threshold)
-        
+
+        trajectory = []
         
         if arg_dict["animate"]:
             for j in range(len(joint_indices)):
@@ -314,7 +314,7 @@ def main():
                 for j in range(len(joint_indices)):
                     state.append(p.getJointState(robot_id,joint_indices[j])[0])
                 simdiff = rad2deg(array(ik_solution)) - rad2deg(array(state))
-                print('SimNICO, Step: {}, Error: {}'.format(step, ['{:.2f}'.format(diff) for diff in simdiff])) 
+                print('SimNICO, Step: {}, Error: {}'.format(step, ['{:.2f}'.format(diff) for diff in simdiff]))
                 if linalg.norm(simdiff) <= ACCURACY:
                     finished = True
                 if arg_dict["trajectory"]:
@@ -329,7 +329,8 @@ def main():
                     steps = arg_dict["trajectory_steps"]
                     i_dif = (len(trajectory) - 1) / (steps - 1)
                     for j in range(steps):
-                        f.write("%s\n" % trajectory[int(j*i_dif)])
+                        if int(j*i_dif) != int((j-1)*i_dif):
+                            f.write("%s\n" % trajectory[int(j*i_dif)])
 
             finished = False
 
