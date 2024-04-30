@@ -68,8 +68,31 @@ def target_calibration2(index):
                             [0.245, 0.00, 0.043],
                             [0.245, -0.130, 0.043],
                             [0.245, -0.260, 0.043]]
+    
+    if index >= len(calibration_matrix):
+        index = 1
+    return calibration_matrix[index]
 
 def target_calibration(index):
+    
+    calibration_matrix =   [[0.365, -0.260, 0.04],
+                            [0.365, -0.230, 0.04],
+                            [0.365, -0.210, 0.04],
+                            [0.365, -0.180, 0.04],
+                            [0.365, -0.150, 0.04],
+                            [0.365, -0.120, 0.030],
+                            [0.365, -0.090, 0.030],
+                            [0.365, -0.06, 0.030],
+                            [0.365, -0.03, 0.030],
+                            [0.365, 0.0, 0.030],
+                            [0.365, 0.03, 0.030],
+                            [0.365, 0.07, 0.030]]
+
+    if index >= len(calibration_matrix):
+        index = 1
+    return calibration_matrix[index]
+
+def target_calibration1(index):
     
     calibration_matrix =   [[0.45, -.05, 0.062],
                             [0.38, -0.0, 0.042],
@@ -81,8 +104,7 @@ def target_calibration(index):
     
     if index >= len(calibration_matrix):
         index = 1
-                          # Write your own method for end effector position here
-    return calibration_matrix[index]
+    return calibration_matrix[index]  
 
 def get_joints_limits(robot_id, num_joints,arg_dict):
         """
@@ -345,7 +367,7 @@ def main():
                     i_dif = (len(trajectory) - 1) / (steps - 1)
                     for j in range(steps):
                         if int(j*i_dif) != int((j-1)*i_dif):
-                            f.write("%s\n" % trajectory[int(j*i_dif)])
+                            f.write("%s\n" % rad2deg(trajectory[int(j*i_dif)]))
 
             finished = False
 
