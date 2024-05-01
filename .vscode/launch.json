@@ -9,8 +9,9 @@
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
-            "args": "-g -i -a",
-            "console": "integratedTerminal"
+            "args": "-rr -i -c",
+            "console": "integratedTerminal",
+            "justMyCode": False
         }
     ]
 }
