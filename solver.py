@@ -84,8 +84,11 @@ def main():
     finished = False
     success = False 
 
-    p.connect(p.DIRECT)
-    
+    #p.connect(p.DIRECT)
+    p.connect(p.GUI)
+    p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
+    p.resetDebugVisualizerCamera(cameraDistance=1, cameraYaw=90, cameraPitch=-40, cameraTargetPosition=[0, 0, 0])
+
     # Load the URDF robot a create scene
     robot_id = p.loadURDF("./nico_upper_rh6d_r.urdf", [0, 0, 0])
     
@@ -99,9 +102,10 @@ def main():
         p.resetJointState(robot_id, joint_indices[i], joints_rest_poses[i])
     spin_simulation(50)
 
-    target_position = arg_dict["position"]
+    if arg_dict["position"]:
+        target_position = arg_dict["position"]
      
-    ik_solution = p.calculateInverseKinematics(robot_id,
+        ik_solution = p.calculateInverseKinematics(robot_id,
                                                     end_effector_index,
                                                     target_position,
                                                     lowerLimits=joints_limits[0],
@@ -110,6 +114,10 @@ def main():
                                                     restPoses=joints_rest_poses,
                                                     maxNumIterations=max_iterations,
                                                     residualThreshold=residual_threshold)
+    elif arg_dict["joints"]:
+        ik_solution = deg2rad(arg_dict["joints"])
+
+
 
     trajectory = []
     
@@ -162,12 +170,12 @@ def main():
     #Calculate IK solution error
 
     (x,y,z), (a,b,c,d),_,_,_,_ = p.getLinkState(robot_id, end_effector_index) 
-    IKdiff = (array(target_position) - array([x,y,z]))
-    print('SimNico target_pos: {}'.format(target_position)) 
-    print('SimNico IK error: {}'.format(IKdiff))
-    print('SimNico joint angles: {}'.format(rad2deg(array(ik_solution))))  
+    print('SimNico final_pos: {}'.format([x,y,z])) 
+    if arg_dict["position"]:
+        IKdiff = (array(target_position) - array([x,y,z]))
+        print('SimNico position error: {}'.format(IKdiff))
+    print('SimNico final joint angles: {}'.format(rad2deg(array(ik_solution))))  
     
-
     p.disconnect()
 
 
