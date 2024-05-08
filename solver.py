@@ -84,10 +84,10 @@ def main():
     finished = False
     success = False 
 
-    #p.connect(p.DIRECT)
-    p.connect(p.GUI)
-    p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
-    p.resetDebugVisualizerCamera(cameraDistance=1, cameraYaw=90, cameraPitch=-40, cameraTargetPosition=[0, 0, 0])
+    p.connect(p.DIRECT)
+    #p.connect(p.GUI)
+    #p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
+    #p.resetDebugVisualizerCamera(cameraDistance=1, cameraYaw=90, cameraPitch=-40, cameraTargetPosition=[0, 0, 0])
 
     # Load the URDF robot a create scene
     robot_id = p.loadURDF("./nico_upper_rh6d_r.urdf", [0, 0, 0])
