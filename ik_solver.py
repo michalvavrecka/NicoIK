@@ -249,7 +249,7 @@ def main():
     if arg_dict["left"]:
         robot_id = p.loadURDF("./nico_upper_rh6d_l.urdf", [0, 0, 0])
     else:
-        robot_id = p.loadURDF("./nico_upper_rh6d_r.urdf", [0, 0, 0])
+        robot_id = p.loadURDF("./tiago_dual_mygym.urdf", [0, 0, 0])
     #Create table mesh
     p.createMultiBody(baseVisualShapeIndex=p.createVisualShape(shapeType=p.GEOM_BOX, halfExtents=[.3,.45,0.02], rgbaColor=[0.6,0.6,0.6,1]),
                           baseCollisionShapeIndex= p.createCollisionShape(shapeType=p.GEOM_BOX, halfExtents=[.3,.45,0.02]), baseMass=0,basePosition=[0.27,0,0.02])
