@@ -108,10 +108,10 @@ def target_experiment(index):
     calibration_matrix =   [[0.45, -.05, 0.062],
                             [0.38, -0.0, 0.042],
                             [0.50, 0.05, 0.083],
-                            [0.65, 0.03, 0.085],
-                            [0.58, -.08, 0.09],
+                            [0.53, 0.03, 0.085],
+                            [0.53, -.08, 0.09],
                             [0.43, -.14, 0.06],
-                            [0.36, -.075, 0.035]]
+                            [0.36, -.075, 0.04]]
     
     if index >= len(calibration_matrix):
         index = 1
@@ -265,7 +265,6 @@ def main():
     
     actuated_joints,actuated_initpos = match_joints(init_pos,joint_names)
 
-
     # Real robot initialization and setting all joints
     if arg_dict["real_robot"]:
         from nicomotion.Motion import Motion
@@ -281,14 +280,10 @@ def main():
         time_res = check_execution(robot, init_pos.keys(), list(init_pos.values()))
         print ('Robot reset in {:.2f} seconds.'.format(time_res))  
         actual_position = get_real_joints(robot,actuated_joints)
-        for i in range(len(joint_indices)):
-            p.resetJointState(robot_id, joint_indices[i], deg2rad(actual_position[i]))
-        spin_simulation(50)
-
-    else:
-        for i in range(len(joint_indices)):
-            p.resetJointState(robot_id, joint_indices[i], joints_rest_poses[i])
-        spin_simulation(50)
+    
+    for i in range(len(joint_indices)):
+        p.resetJointState(robot_id, joint_indices[i], deg2rad(actuated_initpos[i]))
+    spin_simulation(50)
 
     # IK paramenters
     max_iterations = 100
@@ -356,7 +351,7 @@ def main():
         
 
         #Reset robot to initial position
-        if arg_dict["initial"]:
+        if arg_dict["initial"] and i != 0:
             if arg_dict["real_robot"]:
                 #for i,realjoint in enumerate(actuated_joints):
                 #    degrees = rad2deg(actuated_initpos[i])
@@ -373,9 +368,10 @@ def main():
                 print('RealNICO init: {:.2f}s, Error: {}'.format(time_res, ['{:.2f}'.format(diff) for diff in difference])) 
                 JointIstat.append(difference)
                 TimeIstat.append(time)
-            for j in range(len(joint_indices)):
-                p.resetJointState(robot_id, joint_indices[j], joints_rest_poses[j])
-            # spin_simulation(20)
+                #actual_position = get_real_joints(robot,actuated_joints)
+        for i in range(len(joint_indices)):
+            p.resetJointState(robot_id, joint_indices[i], deg2rad(actuated_initpos[i]))
+        spin_simulation(50)
         
         #target_orientation = target_position + [1]
         # Perform IK
@@ -489,8 +485,8 @@ def main():
 
         (x,y,z), (a,b,c,d),_,_,_,_ = p.getLinkState(robot_id, end_effector_index) 
         IKdiff = (array(target_position) - array([x,y,z]))
-        # print('SimNico target_pos: {}'.format(target_position))
-        # print('SimNico IK error: {}'.format(IKdiff))
+        print('SimNico final_pos: {}'.format([x,y,z]))
+        print('SimNico IK error: {}'.format(IKdiff))
         IKstat.append(IKdiff)
         
         if arg_dict["real_robot"]:
