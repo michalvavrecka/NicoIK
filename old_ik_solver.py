@@ -11,8 +11,6 @@ import pandas as pd
 RESET_SPEED = 0.05
 # Acccuracy (vector distance) to consider the target positon reached
 ACCURACY = 3
-# Delay between simulation steps
-SIM_STEP_DELAY = 0.01
 
 
 # Once the coordinate system is fixed and all that, 
@@ -191,13 +189,11 @@ def speed_control(initial, target, duration):
         speed_to_reach = (abs((float(initial) - float(target)) / float(1260*duration)))
         return speed_to_reach
 
-def sim_speed_control(initial, target, duration):
-    return abs(float(initial) - float(target)) / float(0.425*duration)
-
 def spin_simulation(steps):
     for i in range(steps):
         p.stepSimulation()
-        time.sleep(SIM_STEP_DELAY)
+        time.sleep(0.01
+        )
 
 def check_execution (robot, joints, target):
     tic = time.time()
@@ -209,7 +205,7 @@ def check_execution (robot, joints, target):
         diff = array(target) - array(actual)
         distance = linalg.norm(diff)
         print('Duration: {:.2f}, Error: {:.2f}'.format(time.time()-tic,distance), end='\r')
-        #time.sleep(0.1)
+        #time.sleep(0.01)
     toc = time.time()
     return toc-tic
 
@@ -225,13 +221,12 @@ def main():
     parser.add_argument("-f", "--file", type=str, help="Target position for the robot end effector as a list of three floats.")
     parser.add_argument("-l", "--left", action="store_true", help="If set, use left hand IK")
     parser.add_argument("-i", "--initial", action="store_true", help="If set, reset the robot to the initial position after each postion")
-    parser.add_argument("-t", "--trajectory", type=int, help="If set, execute trajectory positions from the text file with corresponding number")
+    parser.add_argument("-t", "--trajectory", action="store_true", help="Store coordinates from simulation into text file")
     parser.add_argument("-c", "--calibration", action="store_true", help="If set, execute calibration positions")
     parser.add_argument("-e", "--experiment", action="store_true", help="If set, execute experiments positions")
     parser.add_argument("-s", "--speed", type=float, default = 1, help="Speed of arm movement in simulator")
     parser.add_argument("-d", "--duration", type=float, default = 1, help="Duration of movement in si/real robot")
     parser.add_argument("-ts", "--trajectory_steps", type=int, default=5, help="Number of steps in each trajectory")
-    parser.add_argument("-st", "--save_trajectory", action="store_true", help="Store coordinates from simulation into text file")
     arg_dict = vars(parser.parse_args())
 
     #TouchAgent()
@@ -301,28 +296,10 @@ def main():
     JointGstat=[]
     TimeGstat=[]
     state = []
-    sim_time_errors = []
     finished = False
-
-    movement_duration = arg_dict["duration"]
     
     #if arg_dict["file"]:
     #    open(arg_dict["file"]) as data
-
-    trajectory_joints, trajectory_durations, trajectory_end_effector_positions = [], [], []
-    if arg_dict["trajectory"] is not None:
-        file_name = f"trajectories/trajectory_{arg_dict['trajectory']}.txt"
-        with open(file_name, 'r') as f:
-            content = f.read().split('\n')[:-1]
-
-        if content:
-            for pos in content:
-                joints, duration, end_effector_position = pos.split(' ')
-                trajectory_joints.append(list(map(float, joints.split(','))))
-                trajectory_durations.append(float(duration))
-                trajectory_end_effector_positions.append(list(map(float, end_effector_position.split(','))))
-        else:
-            print("File empty")
 
 
     for i in range(30):
@@ -334,13 +311,6 @@ def main():
             target_position = target_calibration(i)
         elif arg_dict["experiment"]:
             target_position = target_experiment(i)
-        elif arg_dict["trajectory"] is not None:
-            index = i % len(trajectory_end_effector_positions)
-            target_position = trajectory_end_effector_positions[index]
-            if index == 0:
-                movement_duration = 1
-            else:
-                movement_duration = trajectory_durations[index]
         #elif arg_dict["file"]:
         #    target_position = data[i]
         #    print target_position
@@ -348,8 +318,7 @@ def main():
             target_position = target_joints(i)
         else:
             target_position = target_random()
-
-        # print(target_position)
+        
         #Create goal dot
         p.createMultiBody(baseVisualShapeIndex=p.createVisualShape(shapeType=p.GEOM_SPHERE, radius=0.01, rgbaColor=[0,0,1,.7]),
                           baseCollisionShapeIndex= -1, baseMass=0,basePosition=target_position)
@@ -358,14 +327,6 @@ def main():
         #Reset robot to initial position
         if arg_dict["initial"]:
             if arg_dict["real_robot"]:
-                #for i,realjoint in enumerate(actuated_joints):
-                #    degrees = rad2deg(actuated_initpos[i])
-                #    speed = speed_control(actual_position[i], degrees, movement_duration)
-                #    if realjoint == 'r_wrist_z':
-                #        degrees += ANGLE_SHIFT_WRIST_Z
-                #    elif realjoint == 'r_wrist_x':
-                #        degrees += ANGLE_SHIFT_WRIST_X  
-                #robot.setAngle(realjoint, degrees,speed)
                 robot = reset_actuated(robot,actuated_joints,actuated_initpos)
                 time_res = check_execution(robot, actuated_joints, actuated_initpos)
                 reset_pos = get_real_joints(robot,actuated_joints)
@@ -375,15 +336,14 @@ def main():
                 TimeIstat.append(time)
             for j in range(len(joint_indices)):
                 p.resetJointState(robot_id, joint_indices[j], joints_rest_poses[j])
-            # spin_simulation(20)
+            spin_simulation(20)
         
         #target_orientation = target_position + [1]
         # Perform IK
         #ik_solution = p.calculateInverseKinematics(robot_id, end_effector_index, target_position,
         #                                           targetOrientation=target_orientation,
         #                                        maxNumIterations=max_iterations,
-        #                                        residualThreshold=residual_threshold)
-
+        #                                        residualThreshold=residual_threshold)        
         ik_solution = p.calculateInverseKinematics(robot_id,
                                                        end_effector_index,
                                                        target_position,
@@ -396,86 +356,39 @@ def main():
 
         if arg_dict["experiment"]:
             target_position = target_experiment(i)
-
-        save_trajectory_joints, save_trajectory_durations, save_trajectory_end_effector_positions = [], [], []
-
+        trajectory = []
+        
         if arg_dict["animate"]:
             for j in range(len(joint_indices)):
-                speed = sim_speed_control(p.getJointState(robot_id,joint_indices[j])[0], ik_solution[j], movement_duration)
-
+                                    
                 p.setJointMotorControl2(robot_id, joint_indices[j],
                                         p.POSITION_CONTROL, ik_solution[j],
-                                        maxVelocity=speed,
+                                        maxVelocity=arg_dict["speed"],
                                         force=500,
                                         positionGain=0.7,
                                         velocityGain=0.3)
-
-            tic = time.perf_counter()
-
             step = 1
             while not finished:
                 for j in range(len(joint_indices)):
                     state.append(p.getJointState(robot_id,joint_indices[j])[0])
                 simdiff = rad2deg(array(ik_solution)) - rad2deg(array(state))
-                # print('SimNICO, Step: {}, Error: {}'.format(step, ['{:.2f}'.format(diff) for diff in simdiff],end='\r'))
+                print('SimNICO, Step: {}, Error: {}'.format(step, ['{:.2f}'.format(diff) for diff in simdiff],end='\r')) 
                 if linalg.norm(simdiff) <= ACCURACY:
                     finished = True
-                if arg_dict["save_trajectory"]:
-                    save_trajectory_joints.append(state)
-                    save_trajectory_durations.append(time.perf_counter() - tic)
-                    save_trajectory_end_effector_positions.append(p.getLinkState(robot_id, end_effector_index)[0])
+                if arg_dict["trajectory"]:
+                    trajectory.append(state)
                 spin_simulation(1)
+                state = []
                 step += 1
-                state = []
-
-            toc = time.perf_counter()
-
-            if arg_dict["save_trajectory"]:
-                for j in range(len(joint_indices)):
-                    state.append(p.getJointState(robot_id,joint_indices[j])[0])
-                save_trajectory_joints.append(state)
-                save_trajectory_durations.append(toc - tic)
-                save_trajectory_end_effector_positions.append(p.getLinkState(robot_id, end_effector_index)[0])
-                state = []
-
-            print('Sim time using step count:', step * SIM_STEP_DELAY)
-
-            print("sim time using time module:", toc - tic)
-
-            sim_time_error = abs(arg_dict['duration'] - step * SIM_STEP_DELAY)
-            # print('Sim time error using step count:', sim_time_error)
-            sim_time_errors.append(sim_time_error)
-
             #SAVE TRAJECTORY AS TEXT FILE
-            if arg_dict["save_trajectory"]:
+            if arg_dict["trajectory"]:
                 filename = 'trajectories/trajectory_'+str(i)+'.txt'
                 with open(filename, 'w') as f:
                     steps = arg_dict["trajectory_steps"]
-                    if steps > 1:
-                        i_dif = (len(save_trajectory_joints) - 1) / (steps - 1)
-                        for j in range(steps):
-                            index = int(j*i_dif)
-                            if index != int((j-1)*i_dif):
-                                f.write("%s " % ','.join(list(map(str, (rad2deg(save_trajectory_joints[index]))))))
-                                if j == 0:
-                                    f.write("%s " % 0)
-                                else:
-                                    f.write("%s " % str(save_trajectory_durations[index] - save_trajectory_durations[int((j-1)*i_dif)]))
-                                f.write("%s\n" % ','.join(list(map(str, (save_trajectory_end_effector_positions[index])))))
-                    else:
-                        print("Trajectory steps must be greater than 1")
-
-                filename = 'test_trajectories/trajectory_' + str(i) + '.txt'
-                with open(filename, 'w') as f:
-                    for j in range(len(save_trajectory_joints)):
-                        f.write("%s " % ','.join(list(map(str, (rad2deg(save_trajectory_joints[j]))))))
-                        if j == 0:
-                            f.write("%s " % 0)
-                        else:
-                            f.write("%s " % str(save_trajectory_durations[j] - save_trajectory_durations[j-1]))
-                        f.write("%s\n" % ','.join(list(map(str, (save_trajectory_end_effector_positions[j])))))
-
-                # print(p.getLinkState(robot_id, end_effector_index)[0])
+                    i_dif = (len(trajectory) - 1) / (steps - 1)
+                    for j in range(steps):
+                        if int(j*i_dif) != int((j-1)*i_dif):
+                            f.write("%s\n" % rad2deg(trajectory[int(j*i_dif)]))
 
             finished = False
 
@@ -489,8 +402,8 @@ def main():
 
         (x,y,z), (a,b,c,d),_,_,_,_ = p.getLinkState(robot_id, end_effector_index) 
         IKdiff = (array(target_position) - array([x,y,z]))
-        # print('SimNico target_pos: {}'.format(target_position))
-        # print('SimNico IK error: {}'.format(IKdiff))
+        print('SimNico target_pos: {}'.format(target_position)) 
+        print('SimNico IK error: {}'.format(IKdiff)) 
         IKstat.append(IKdiff)
         
         if arg_dict["real_robot"]:
@@ -499,27 +412,22 @@ def main():
 
             for i,realjoint in enumerate(actuated_joints):
                 degrees = rad2deg(ik_solution[i])
-                speed = speed_control(actual_position[i], degrees, movement_duration)
+                speed = speed_control(actual_position[i], degrees, arg_dict["duration"])
                 if realjoint == 'r_wrist_z':
                     degrees += ANGLE_SHIFT_WRIST_Z
                 elif realjoint == 'r_wrist_x':
                     degrees += ANGLE_SHIFT_WRIST_X  
                 robot.setAngle(realjoint, degrees,speed)
                 targetdeg.append(degrees)
-            #time.sleep(movement_duration)
+            #time.sleep(arg_dict['duration'])
             time_ex = check_execution(robot, actuated_joints, targetdeg)     
-            #time_ex= (movement_duration)
+            #time_ex= (arg_dict['duration'])
             #time.sleep(2)
             final_pos = get_real_joints(robot,actuated_joints)
             difference = array(targetdeg) - array(final_pos)
             print('RealNICO goal: {:.2f}s, Error: {}'.format(time_ex, ['{:.2f}'.format(diff) for diff in difference])) 
             JointGstat.append(difference)
             TimeGstat.append(time_ex)
-
-    filename = 'sim_time_errors/sim_time_error_with_duration_' + str(movement_duration) + '.txt'
-    with open(filename, 'w') as f:
-        for sim_time_error in sim_time_errors:
-            f.write("%s\n" % sim_time_error)
 
 
     # Create a new figure
