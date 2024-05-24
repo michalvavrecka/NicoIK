@@ -423,6 +423,9 @@ def main():
                 spin_simulation(1)
                 step += 1
                 state = []
+                if step > 300:
+                    print('ANIMATION MODE FAILED - NEEDS DEBUGGGING')
+                    quit()
 
             toc = time.perf_counter()
 
