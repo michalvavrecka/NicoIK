@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 from sim_height_calculation import calculate_z
+import calibration_matrices
 
 # from TouchAgent import TouchAgent
 
@@ -51,58 +52,6 @@ init_pos = {  # standard position
 
 set_printoptions(precision=3)
 set_printoptions(suppress=True)
-
-
-def target_random():
-    target_position = [0.30 + (0.15 * random.rand()), -0.20 + (0.40 * random.rand()),
-                       0.08]  # Write your own method for end effector position here
-    # return [0.25, -0.2, 0.15]
-    return target_position
-
-def target_calibration(index):
-    calibration_matrix = [[0.365, -0.260, 0.04],
-                          [0.365, -0.230, 0.04],
-                          [0.365, -0.210, 0.04],
-                          [0.365, -0.180, 0.04],
-                          [0.365, -0.150, 0.04],
-                          [0.365, -0.120, 0.030],
-                          [0.365, -0.090, 0.030],
-                          [0.365, -0.06, 0.030],
-                          [0.365, -0.03, 0.030],
-                          [0.365, 0.0, 0.030],
-                          [0.365, 0.03, 0.030],
-                          [0.365, 0.07, 0.030]]
-
-    if index >= len(calibration_matrix):
-        index = 1
-    return calibration_matrix[index]
-
-
-def target_joints(index):
-    calibration_matrix = [[27.502, 90, 34.999, 114.998, 90., -22.5],
-                          [16.997, 79.502, 29.449, 125.503, 89.764, -32.994],
-                          [10.99, 68.98, 29.452, 136.007, 89.762, -40.419],
-                          [10.98, 58.476, 29.439, 138.99, 89.761, -40.423],
-                          [10.98, 47.733, 29.438, 138.991, 89.761, -40.423]]
-
-    if index >= len(calibration_matrix):
-        index = 1
-    return calibration_matrix[index]
-
-
-def target_experiment(index):
-    calibration_matrix = [[0.45, -.05, 0.062],
-                          [0.38, -0.0, 0.042],
-                          [0.50, 0.05, 0.083],
-                          [0.65, 0.03, 0.085],
-                          [0.58, -.08, 0.09],
-                          [0.43, -.14, 0.06],
-                          [0.36, -.075, 0.035]]
-
-    if index >= len(calibration_matrix):
-        index = 1
-    return calibration_matrix[index]
-
 
 def get_joints_limits(robot_id, num_joints, arg_dict):
     """
@@ -316,14 +265,10 @@ def main():
         time_res = check_execution(robot, init_pos.keys(), list(init_pos.values()))
         print('Robot reset in {:.2f} seconds.'.format(time_res))
         actual_position = get_real_joints(robot, actuated_joints)
+    if not arg_dict["initial"]:
         for i in range(len(joint_indices)):
-            p.resetJointState(robot_id, joint_indices[i], deg2rad(actual_position[i]))
-        spin_simulation(50)
-
-    else:
-        for i in range(len(joint_indices)):
-            p.resetJointState(robot_id, joint_indices[i], joints_rest_poses[i])
-        spin_simulation(50)
+            p.resetJointState(robot_id, joint_indices[i], deg2rad(actuated_initpos[i]))
+    #spin_simulation(50)
 
     # IK paramenters
     max_iterations = 100
@@ -381,10 +326,9 @@ def main():
         if arg_dict["position"]:
             target_position = arg_dict["position"]
         elif arg_dict["calibration"]:
-            target_position = target_calibration(i)
+            target_position = calibration_matrices.target_calibration(i)
         elif arg_dict["experiment"]:
-            import calibration_matrices
-            target_position = calibration_matrices.target_point(i)
+            target_position = calibration_matrices.target_experiment(i)
         elif arg_dict["trajectory"] is not None:
             index = i % len(trajectory_end_effector_positions)
             target_position = trajectory_end_effector_positions[index]
@@ -420,7 +364,7 @@ def main():
                 JointIstat.append(difference)
                 TimeIstat.append(time)
             for j in range(len(joint_indices)):
-                p.resetJointState(robot_id, joint_indices[j], joints_rest_poses[j])
+                p.resetJointState(robot_id, joint_indices[j], deg2rad(actuated_initpos[j]))
             # spin_simulation(20)
 
         # target_orientation = target_position + [1]
@@ -437,12 +381,10 @@ def main():
                                                    lowerLimits=joints_limits[0],
                                                    upperLimits=joints_limits[1],
                                                    jointRanges=joints_ranges,
-                                                   restPoses=joints_rest_poses,
                                                    maxNumIterations=max_iterations,
                                                    residualThreshold=residual_threshold)
 
-        if arg_dict["experiment"]:
-            target_position = target_experiment(i)
+
         trajectory = []
 
         save_trajectory_joints, save_trajectory_durations, save_trajectory_end_effector_coords = [], [], []
@@ -476,8 +418,11 @@ def main():
                     save_trajectory_durations.append(time.perf_counter() - tic)
                     save_trajectory_end_effector_coords.append(p.getLinkState(robot_id, end_effector_index)[0])
                 spin_simulation(1)
-                state = []
                 step += 1
+                state = []
+                if step > 300:
+                    print('ANIMATION MODE FAILED - NEEDS DEBUGGGING')
+                    finished = True
 
             toc = time.perf_counter()
 
@@ -565,7 +510,7 @@ def main():
         else:
             for j in range(len(joint_indices)):
                 p.resetJointState(robot_id, joint_indices[j], ik_solution[j])
-            spin_simulation(100)
+            #spin_simulation(10)
 
         # Calculate IK solution error
 
@@ -609,17 +554,17 @@ def main():
             TimeGstat.append(time_ex)
     
     # Reset robot to initial position
-    if arg_dict["real_robot"]:
-        robot = reset_actuated(robot, actuated_joints, actuated_initpos)
-        time_res = check_execution(robot, actuated_joints, actuated_initpos)
-        reset_pos = get_real_joints(robot, actuated_joints)
-        difference = array(actuated_initpos) - array(reset_pos)
+    #if arg_dict["real_robot"]:
+    #    robot = reset_actuated(robot, actuated_joints, actuated_initpos)
+    #    time_res = check_execution(robot, actuated_joints, actuated_initpos)
+    #    reset_pos = get_real_joints(robot, actuated_joints)
+    #    difference = array(actuated_initpos) - array(reset_pos)
         # print('RealNICO init: {:.2f}s, Error: {}'.format(time_res,
         #                                                  ['{:.2f}'.format(diff) for diff in difference]))
-        JointIstat.append(difference)
-        TimeIstat.append(time)
-    for j in range(len(joint_indices)):
-        p.resetJointState(robot_id, joint_indices[j], joints_rest_poses[j])
+    #    JointIstat.append(difference)
+    #    TimeIstat.append(time)
+    #for j in range(len(joint_indices)):
+    #    p.resetJointState(robot_id, joint_indices[j], deg2rad(actuated_initpos[j]))
     # spin_simulation(20)
 
     # filename = 'sim_time_errors/sim_time_error_with_duration_' + str(arg_dict['duration']) + '.txt'
