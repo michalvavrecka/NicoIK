@@ -26,29 +26,43 @@ ANGLE_SHIFT_WRIST_Z = 56
 ANGLE_SHIFT_WRIST_X = 120
 
 init_pos = {  # standard position
-    'l_shoulder_z': -25.0,
-    'l_shoulder_y': 0.0,
-    'l_arm_x': 30.0,
-    'l_elbow_y': 89.0,
-    'l_wrist_z': 0.0,
-    'l_wrist_x': -180.0,
-    'l_thumb_z': -57.0,
+    'l_shoulder_z': -24.0,
+    'l_shoulder_y': 13.0,
+    'l_arm_x': 0.0,
+    'l_elbow_y': 104.0,
+    'l_wrist_z': -4.0,
+    'l_wrist_x': -55.0,
+    'l_thumb_z': -62.0,
     'l_thumb_x': -180.0,
-    'l_indexfinger_x': -180.0,
+    'l_indexfinger_x': -170.0,
     'l_middlefingers_x': -180.0,
-    'r_shoulder_z': -20,
-    'r_shoulder_y': 70,
-    'r_arm_x': 30,
-    'r_elbow_y': 60,
-    'r_wrist_z': 0,
-    'r_wrist_x': 0,
-    'r_thumb_z': -180.0,
-    'r_thumb_x': -180.0,
-    'r_indexfinger_x': -90,
-    'r_middlefingers_x': 180.0,
+    'r_shoulder_z': -25,
+    'r_shoulder_y': 84,
+    'r_arm_x': 47,
+    'r_elbow_y': 94,
+    'r_wrist_z': -59,
+    'r_wrist_x': 114,
+    'r_thumb_z': -1,
+    'r_thumb_x': 44,
+    'r_indexfinger_x': -179,
+    'r_middlefingers_x': 38.0,
     'head_z': 0.0,
     'head_y': 0.0
 }
+
+def nicodeg2rad(nicojoint, nicodegree):
+    if nicojoint == 'r_wrist_z':
+        rad = deg2rad(nicodegree/2)
+    elif nicojoint == 'r_wrist_x':
+        if nicodegree < 0:
+            rad = deg2rad(1/6 * nicodegree)
+        elif nicodegree > 0:
+            rad = deg2rad(5/18 * nicodegree)
+        else:
+            rad = 0
+    else:
+        rad = deg2rad(nicodegree)
+    return rad
 
 set_printoptions(precision=3)
 set_printoptions(suppress=True)
@@ -272,7 +286,7 @@ def main():
         actual_position = get_real_joints(robot, actuated_joints)
     if not arg_dict["initial"]:
         for i in range(len(joint_indices)):
-            p.resetJointState(robot_id, joint_indices[i], deg2rad(actuated_initpos[i]))
+            p.resetJointState(robot_id, joint_indices[i], nicodeg2rad(actuated_joints[i], actuated_initpos[i]))
     #spin_simulation(50)
 
     # IK paramenters
@@ -565,10 +579,7 @@ def main():
             for i, realjoint in enumerate(actuated_joints):
                 degrees = rad2deg(ik_solution[i])
                 speed = speed_control(actual_position[i], degrees, movement_duration)
-                if realjoint == 'r_wrist_z':
-                    degrees += ANGLE_SHIFT_WRIST_Z
-                elif realjoint == 'r_wrist_x':
-                    degrees += ANGLE_SHIFT_WRIST_X
+                
                 
                 robot.setAngle(realjoint, degrees, speed)
                 targetdeg.append(degrees)
