@@ -151,17 +151,21 @@ def check_response(robot, joints, joints_state_before, tic):
     return toc - tic
 
 
-def check_execution(robot, joints, target):
+def check_execution(robot, joints, target, verbose):
     tic = time.time()
     distance = 100
-
+    step = 0
     while distance > ACCURACY:
         actual = get_real_joints(robot, joints)
         # print(timestamp)
         diff = array(target) - array(actual)
         distance = linalg.norm(diff)
-        print('Duration: {:.2f}, Error: {:.2f}'.format(time.time() - tic, distance), end='\r')
+        if verbose:
+            print('RealNICO Step: {}, Time: {:.2f}, JointDeg: {}'.format(step, time.time() - tic, ['{:.2f}'.format(act) for act in actual]))
+        else:
+            print('Duration: {:.2f}, Error: {:.2f}'.format(time.time() - tic, distance), end='\r')
         time.sleep(0.01)
+        step += 1
     toc = time.time()
     return toc - tic
 
@@ -194,6 +198,7 @@ def write_line(file, joint_angles, duration, end_effector_coords):
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("-v", "--verbose", action="store_true", help="Show detail informtion about robot position in terminal")
     parser.add_argument("-p", "--position", nargs=3, type=float, help="Target position for the robot end effector as a list of three floats.")
     parser.add_argument("-j", "--joints", nargs=6, type=float, help="Target joint angles for the robot end effector as a list of six floats.")
     parser.add_argument("-rr", "--real_robot", action="store_true", help="If set, execute action on real robot.")
@@ -262,7 +267,7 @@ def main():
             exit()
         # robot = init_robot()
         robot = reset_robot(robot, init_pos)
-        time_res = check_execution(robot, init_pos.keys(), list(init_pos.values()))
+        time_res = check_execution(robot, init_pos.keys(), list(init_pos.values()), arg_dict["verbose"])
         print('Robot reset in {:.2f} seconds.'.format(time_res))
         actual_position = get_real_joints(robot, actuated_joints)
     if not arg_dict["initial"]:
@@ -354,17 +359,35 @@ def main():
 
         # Reset robot to initial position
         if arg_dict["initial"]:
-            if arg_dict["real_robot"]:
-                robot = reset_actuated(robot, actuated_joints, actuated_initpos)
-                time_res = check_execution(robot, actuated_joints, actuated_initpos)
-                reset_pos = get_real_joints(robot, actuated_joints)
-                difference = array(actuated_initpos) - array(reset_pos)
-                # print('RealNICO init: {:.2f}s, Error: {}'.format(time_res,
-                #                                                  ['{:.2f}'.format(diff) for diff in difference]))
-                JointIstat.append(difference)
-                TimeIstat.append(time)
+            
+
+            resetsim_pos = []
             for j in range(len(joint_indices)):
                 p.resetJointState(robot_id, joint_indices[j], deg2rad(actuated_initpos[j]))
+            for j in range(len(joint_indices)):
+                    resetsim_pos.append(p.getJointState(robot_id, joint_indices[j])[0])
+            simdifference = array(actuated_initpos) - array(rad2deg(resetsim_pos))
+            (x, y, z), (a, b, c, d), _, _, _, _ = p.getLinkState(robot_id, end_effector_index)
+            if arg_dict["verbose"]:
+                print('SimNICO init: 0s \n Error: {} \n Goal: {} \n Real: {} \n InitPos: {}'.format(
+                                                                    ['{:.2f}'.format(diff) for diff in simdifference],
+                                                                    ['{:.2f}'.format(goal) for goal in actuated_initpos],
+                                                                    ['{:.2f}'.format(sim) for sim in rad2deg(resetsim_pos)],
+                                                                    ['{:.2f}'.format(simpos) for simpos in [x, y, z]]))
+            if arg_dict["real_robot"]:
+                robot = reset_actuated(robot, actuated_joints, actuated_initpos)
+                time_res = check_execution(robot, actuated_joints, actuated_initpos, arg_dict["verbose"])
+                reset_pos = get_real_joints(robot, actuated_joints)
+                difference = array(actuated_initpos) - array(reset_pos)
+                if arg_dict["verbose"]:
+                    print('RealNICO init: {:.2f}s \n Error: {} \n Goal: {} \n Real: {}'.format(time_res,
+                                                                    ['{:.2f}'.format(diff) for diff in difference],
+                                                                    ['{:.2f}'.format(goal) for goal in actuated_initpos],
+                                                                    ['{:.2f}'.format(real) for real in reset_pos]))
+                    input('Compare real and sim position visually')
+                JointIstat.append(difference)
+                TimeIstat.append(time)
+            
             # spin_simulation(20)
 
         # target_orientation = target_position + [1]
@@ -408,7 +431,8 @@ def main():
                 for j in range(len(joint_indices)):
                     state.append(p.getJointState(robot_id, joint_indices[j])[0])
                 simdiff = rad2deg(array(ik_solution)) - rad2deg(array(state))
-                # print('SimNICO, Step: {}, Error: {}'.format(step, ['{:.2f}'.format(diff) for diff in simdiff], end='\r'))
+                if arg_dict["verbose"]:
+                    print('SimNICO, Step: {}, JointDeg: {}'.format(step, ['{:.2f}'.format(pos) for pos in rad2deg(state)], end='\n'))
                 if linalg.norm(simdiff) <= ACCURACY:
                     finished = True
 
@@ -419,8 +443,9 @@ def main():
                     save_trajectory_end_effector_coords.append(p.getLinkState(robot_id, end_effector_index)[0])
                 spin_simulation(1)
                 step += 1
+                last_state = state
                 state = []
-                if step > 300:
+                if step > 350:
                     print('ANIMATION MODE FAILED - NEEDS DEBUGGGING')
                     finished = True
 
@@ -511,7 +536,7 @@ def main():
             for j in range(len(joint_indices)):
                 p.resetJointState(robot_id, joint_indices[j], ik_solution[j])
             #spin_simulation(10)
-
+    
         # Calculate IK solution error
 
         (x, y, z), (a, b, c, d), _, _, _, _ = p.getLinkState(robot_id, end_effector_index)
@@ -519,7 +544,16 @@ def main():
         # print('SimNico target_pos: {}'.format(target_position))
         # print('SimNico IK error: {}'.format(IKdiff))
         IKstat.append(IKdiff)
-
+        simdiff = rad2deg(array(ik_solution)) - rad2deg(array(last_state))
+        if arg_dict["verbose"]:
+            print('SimNICO goal: {:.2f}s \n Error: {} \n Goal: {} \n Real: {} \n PosError: {} \n GoalPos: {} \n RealPos: {}'.format((toc - tic),
+                                                                    ['{:.2f}'.format(diff) for diff in simdiff],
+                                                                    ['{:.2f}'.format(goal) for goal in rad2deg(ik_solution)],
+                                                                    ['{:.2f}'.format(real) for real in rad2deg(last_state)],
+                                                                    ['{:.2f}'.format(posdiff) for posdiff in IKdiff],
+                                                                    ['{:.2f}'.format(goalpos) for goalpos in target_position],
+                                                                    ['{:.2f}'.format(realpos) for realpos in [x, y, z]]))
+            
         if arg_dict["real_robot"]:
 
             targetdeg = []
@@ -544,28 +578,21 @@ def main():
             TimeRstat.append(time_response)
             
             # time.sleep(arg_dict['duration'])
-            time_ex = check_execution(robot, actuated_joints, targetdeg)
+            time_ex = check_execution(robot, actuated_joints, targetdeg,arg_dict["verbose"])
             # time_ex= (arg_dict['duration'])
             # time.sleep(2)
             final_pos = get_real_joints(robot, actuated_joints)
             difference = array(targetdeg) - array(final_pos)
-            print('RealNICO goal: {:.2f}s, Error: {}'.format(time_ex, ['{:.2f}'.format(diff) for diff in difference]))
+            if arg_dict["verbose"]:
+                print('RealNICO goal: {:.2f}s \n Error: {} \n Goal: {} \n Real: {}'.format(time_res,
+                                                                    ['{:.2f}'.format(diff) for diff in difference],
+                                                                    ['{:.2f}'.format(goal) for goal in targetdeg],
+                                                                    ['{:.2f}'.format(real) for real in final_pos]))
+                input('Compare real and sim position visually')
             JointGstat.append(difference)
             TimeGstat.append(time_ex)
+        
     
-    # Reset robot to initial position
-    #if arg_dict["real_robot"]:
-    #    robot = reset_actuated(robot, actuated_joints, actuated_initpos)
-    #    time_res = check_execution(robot, actuated_joints, actuated_initpos)
-    #    reset_pos = get_real_joints(robot, actuated_joints)
-    #    difference = array(actuated_initpos) - array(reset_pos)
-        # print('RealNICO init: {:.2f}s, Error: {}'.format(time_res,
-        #                                                  ['{:.2f}'.format(diff) for diff in difference]))
-    #    JointIstat.append(difference)
-    #    TimeIstat.append(time)
-    #for j in range(len(joint_indices)):
-    #    p.resetJointState(robot_id, joint_indices[j], deg2rad(actuated_initpos[j]))
-    # spin_simulation(20)
 
     # filename = 'sim_time_errors/sim_time_error_with_duration_' + str(arg_dict['duration']) + '.txt'
     # with open(filename, 'w') as f:
