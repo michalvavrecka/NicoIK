@@ -1,27 +1,25 @@
-def rescale_value(x):
-    """
-    Rescale a value from the range [-180, 180] to the range [-30, 50] where 0 maps to 0.
-    
-    Parameters:
-    x (float): The value in the original range.
-    
-    Returns:
-    float: The value in the new range.
-    """
-    # Scaling factor
-    a = 2 / 9
-    
-    # Shift constant
-    b = -10
-    
-    # Apply the transformation
-    y = a * x + b
-    
-    return y
+andy
 
-# Example usage
-original_values = [-180, -90, 0, 90, 180]
-rescaled_values = [rescale_value(x) for x in original_values]
+'r_shoulder_z': -25,
+    'r_shoulder_y': 84,
+    'r_arm_x': 47,
+    'r_elbow_y': 94,
+    'r_wrist_z': -59,
+    'r_wrist_x': 114,
+    'r_thumb_z': -1,
+    'r_thumb_x': 44,
+    'r_indexfinger_x': -90,
+    'r_middlefingers_x': 38.0,
 
-print("Original values:", original_values)
-print("Rescaled values:", rescaled_values)
+michal
+
+ 'r_shoulder_z':-20,
+    'r_shoulder_y':70,
+    'r_arm_x':30,
+    'r_elbow_y':60,
+    'r_wrist_z':0,
+    'r_wrist_x':0,
+    'r_thumb_z':-180.0,
+    'r_thumb_x':-180.0,
+    'r_indexfinger_x':-90,
+    'r_middlefingers_x':180.0,

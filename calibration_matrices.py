@@ -35,6 +35,19 @@ calibration_grid = [[[0.30, -0.20, 0.030],
                      [0.45, 0.15, 0.068],
                      [0.45, 0.20, 0.072]]]
 
+def target_experiment(index):
+    calibration_matrix = [[0.45, -.05, 0.07],
+                          [0.42, -0.0, 0.07],
+                          [0.50, 0.05, 0.07],
+                          [0.65, 0.03, 0.085],
+                          [0.58, -.08, 0.09],
+                          [0.43, -.14, 0.06],
+                          [0.36, -.075, 0.035]]
+
+    if index >= len(calibration_matrix):
+        index = 1
+    return calibration_matrix[index]
+
 
 def target_calibration_grid(index):
     index %= len(calibration_grid) * len(calibration_grid[0])
@@ -215,19 +228,6 @@ def target_line_diagonal_1(index):
                           [0.420, 0.120, 0.043],
                           [0.435, 0.160, 0.043],
                           [0.450, 0.200, 0.043]]
-
-    if index >= len(calibration_matrix):
-        index = 1
-    return calibration_matrix[index]
-
-def target_experiment(index):
-    calibration_matrix = [[0.45, -.05, 0.062],
-                          [0.38, -0.0, 0.042],
-                          [0.50, 0.05, 0.083],
-                          [0.65, 0.03, 0.085],
-                          [0.58, -.08, 0.09],
-                          [0.43, -.14, 0.06],
-                          [0.36, -.075, 0.035]]
 
     if index >= len(calibration_matrix):
         index = 1

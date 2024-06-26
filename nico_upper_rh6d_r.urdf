@@ -236,7 +236,7 @@
 		<child link="right_wrist"/>
 		<origin rpy="0 0 1.57" xyz="0 0 -0.105"/>
 		<axis xyz="0 0 1"/>
-		<limit effort="30" lower="-1.5707963268" upper="1.5707963268" velocity="1"/>
+		<limit effort="30" lower="1.4" upper="1.57" velocity="1"/>
 	</joint>
 	<link name="right_palm"> <!--gripper-->
 		<visual>

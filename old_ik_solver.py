@@ -11,7 +11,7 @@ import calibration_matrices
 # from TouchAgent import TouchAgent
 
 # Set speed to reseti to initial position
-RESET_SPEED = 0.05
+RESET_SPEED = 0.02
 # Acccuracy (vector distance) to consider the target positon reached
 ACCURACY = 3
 # Delay between simulation steps
@@ -31,16 +31,16 @@ init_pos = {  # standard position
     'l_thumb_x': -180.0,
     'l_indexfinger_x': -170.0,
     'l_middlefingers_x': -180.0,
-    'r_shoulder_z': -25,
-    'r_shoulder_y': 84,
-    'r_arm_x': 47,
-    'r_elbow_y': 94,
-    'r_wrist_z': -59,
-    'r_wrist_x': 114,
-    'r_thumb_z': -1,
-    'r_thumb_x': 44,
-    'r_indexfinger_x': -90,
-    'r_middlefingers_x': 38.0,
+    'r_shoulder_z':-20,
+    'r_shoulder_y':70,
+    'r_arm_x':30,
+    'r_elbow_y':60,
+    'r_wrist_z':0,
+    'r_wrist_x':0,
+    'r_thumb_z':-180.0,
+    'r_thumb_x':-180.0,
+    'r_indexfinger_x':-90,
+    'r_middlefingers_x':180.0,
     'head_z': 0.0,
     'head_y': 0.0
 }
@@ -234,7 +234,7 @@ def main():
     parser.add_argument("-c", "--calibration", action="store_true", help="If set, execute calibration positions")
     parser.add_argument("-e", "--experiment", action="store_true", help="If set, execute experiments positions")
     parser.add_argument("-s", "--speed", type=float, default=1, help="Speed of arm movement in simulator")
-    parser.add_argument("-d", "--duration", type=float, default=3, help="Duration of movement in si/real robot")
+    parser.add_argument("-d", "--duration", type=float, default=2, help="Duration of movement in si/real robot")
     parser.add_argument("-ts", "--trajectory_steps", type=int, default=5, help="Number of steps in each trajectory")
     parser.add_argument("-st", "--save_trajectory", action="store_true", help="Store coordinates from simulation into text file")
     parser.add_argument("-cz", "--calculate_z_value", action="store_true", help="If set, the z value is calculated from calibration grid")
@@ -414,10 +414,10 @@ def main():
                                                                     ['{:.2f}'.format(diff) for diff in difference],
                                                                     ['{:.2f}'.format(goal) for goal in actuated_initpos],
                                                                     ['{:.2f}'.format(real) for real in reset_pos]))
-                    input('Compare real and sim position visually')
+                    
                 JointIstat.append(difference)
                 TimeIstat.append(time)
-            
+            input('Compare real and sim position visually')
             # spin_simulation(20)
 
         # target_orientation = target_position + [1]
@@ -429,13 +429,14 @@ def main():
 
         # if not len(ik_solution):            # If we are reading trajectory from the file, we don't need to calculate
         ik_solution = p.calculateInverseKinematics(robot_id,
-                                                   end_effector_index,
-                                                   target_position,
-                                                   lowerLimits=joints_limits[0],
-                                                   upperLimits=joints_limits[1],
-                                                   jointRanges=joints_ranges,
-                                                   maxNumIterations=max_iterations,
-                                                   residualThreshold=residual_threshold)
+                                                       end_effector_index,
+                                                       target_position,
+                                                       lowerLimits=joints_limits[0],
+                                                       upperLimits=joints_limits[1],
+                                                       jointRanges=joints_ranges,
+                                                        restPoses=joints_rest_poses,
+                                                       maxNumIterations=max_iterations,
+                                                       residualThreshold=residual_threshold)
 
 
         trajectory = []
@@ -467,7 +468,7 @@ def main():
                     for i in range(len(joint_indices)):
                         nicodeg_pos.append(rad2nicodeg(actuated_joints[i], state[i]))
                     print('SimNICO, Step: {}, JointDeg: {}'.format(step, ['{:.2f}'.format(pos) for pos in nicodeg_pos], end='\n'))
-                if linalg.norm(simdiff) <= ACCURACY:
+                if linalg.norm(simdiff) <= 3:
                     finished = True
 
                 # Saving trajectory points in lists for writing into file
