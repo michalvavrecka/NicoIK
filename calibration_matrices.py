@@ -48,6 +48,19 @@ def target_experiment(index):
         index = 1
     return calibration_matrix[index]
 
+def target_old_experiment(index):
+    calibration_matrix = [[0.45, -.05, 0.07],
+                          [0.42, -0.0, 0.07],
+                          [0.50, 0.05, 0.07],
+                          [0.65, 0.03, 0.085],
+                          [0.58, -.08, 0.09],
+                          [0.43, -.14, 0.06],
+                          [0.36, -.075, 0.035]]
+
+    if index >= len(calibration_matrix):
+        index = 1
+    return calibration_matrix[index]
+
 
 def target_calibration_grid(index):
     index %= len(calibration_grid) * len(calibration_grid[0])
