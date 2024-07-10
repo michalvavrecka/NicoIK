@@ -1,6 +1,6 @@
 import pybullet as p
 import time
-from numpy import random, rad2deg, deg2rad, set_printoptions, array, linalg, round, any
+from numpy import random, rad2deg, deg2rad, set_printoptions, array, linalg, round, any, mean 
 import argparse
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -296,11 +296,12 @@ def main():
     if not arg_dict["initial"]:
         for i in range(len(joint_indices)):
             p.resetJointState(robot_id, joint_indices[i], nicodeg2rad(actuated_joints[i], actuated_initpos[i]))
+            time.sleep(0.2)
     #spin_simulation(50)
 
     # IK paramenters
-    max_iterations = 100
-    residual_threshold = 0.001
+    max_iterations = 300
+    residual_threshold = 0.0001
 
     # Statistics
     TargetPstat = []        # target position x, y
@@ -347,14 +348,17 @@ def main():
         if not os.path.exists("statistics"):
             os.mkdir("statistics")
 
-    for i in range(40):
+    elif arg_dict["calibration"]:
+        grid = calibration_matrices.TargetGrid()
+
+    for i in range(500):
         # ik_solution = tuple()
         # while True:
         # Target position
         if arg_dict["position"]:
             target_position = arg_dict["position"]
         elif arg_dict["calibration"]:
-            target_position = calibration_matrices.target_calibration(i)
+            target_position = next(grid)
         elif arg_dict["experiment"]:
             target_position = calibration_matrices.target_experiment(i)
         elif arg_dict["trajectory"] is not None:
@@ -364,12 +368,12 @@ def main():
             movement_duration = trajectory_durations[index]
         # elif arg_dict["file"]:
         #    target_position = data[i]
-        #    print target_position
         elif arg_dict["joints"]:
             target_position = target_joints(i)
         else:
-            target_position = target_random()
+            target_position = calibration_matrices.target_random()
 
+        #print (target_position)
         if arg_dict["calculate_z_value"]:
             target_position[2] = calculate_z(target_position[0], target_position[1])
         
@@ -377,7 +381,7 @@ def main():
 
         # Create goal dot
         p.createMultiBody(
-            baseVisualShapeIndex=p.createVisualShape(shapeType=p.GEOM_SPHERE, radius=0.01, rgbaColor=[0, 0, 1, .7]),
+            baseVisualShapeIndex=p.createVisualShape(shapeType=p.GEOM_SPHERE, radius=0.007, rgbaColor=[0, 0, 1, .5]),
             baseCollisionShapeIndex=-1, baseMass=0, basePosition=target_position)
 
         # Reset robot to initial position
@@ -390,6 +394,7 @@ def main():
                 p.resetJointState(robot_id, joint_indices[i], nicodeg2rad(actuated_joints[i], actuated_initpos[i]))
             for j in range(len(joint_indices)):
                     resetsim_pos.append(p.getJointState(robot_id, joint_indices[j])[0])
+            time.sleep(0.1)
             #CONVERT TO NICO DEGREES
             nicodeg_resetsim_pos = []
             for i in range(len(joint_indices)):
@@ -431,12 +436,8 @@ def main():
         ik_solution = p.calculateInverseKinematics(robot_id,
                                                        end_effector_index,
                                                        target_position,
-                                                       lowerLimits=joints_limits[0],
-                                                       upperLimits=joints_limits[1],
-                                                       jointRanges=joints_ranges,
-                                                        restPoses=joints_rest_poses,
                                                        maxNumIterations=max_iterations,
-                                                       residualThreshold=residual_threshold)
+                                                residualThreshold=residual_threshold)
 
 
         trajectory = []
@@ -450,7 +451,7 @@ def main():
 
                 p.setJointMotorControl2(robot_id, joint_indices[j],
                                         p.POSITION_CONTROL, ik_solution[j],
-                                        maxVelocity=10,
+                                        maxVelocity=speed,
                                         force=500,
                                         positionGain=0.7,
                                         velocityGain=0.3)
@@ -482,6 +483,7 @@ def main():
                 state = []
                 if step > 350:
                     print('ANIMATION MODE FAILED - NEEDS DEBUGGGING')
+                    p.addUserDebugText(f"FAILED, Jointerror:{simdiff}",[.0, -0.4, .64], textSize=1.5, lifeTime=2, textColorRGB=[1, 0, 0]) 
                     finished = True
 
             toc = time.perf_counter()
@@ -568,12 +570,15 @@ def main():
             finished = False
 
         else:
+            tic = time.perf_counter()
+            
             for i in range(len(joint_indices)):
                 p.resetJointState(robot_id, joint_indices[i], ik_solution[i])
             for j in range(len(joint_indices)):
                     state.append(p.getJointState(robot_id, joint_indices[j])[0])
             last_state = state
             state = []
+            toc = time.perf_counter()
             
             #spin_simulation(10)
     
@@ -581,11 +586,17 @@ def main():
 
         (x, y, z), (a, b, c, d), _, _, _, _ = p.getLinkState(robot_id, end_effector_index)
         IKdiff = (array(target_position) - array([x, y, z]))
+        
         # print('SimNico target_pos: {}'.format(target_position))
         # print('SimNico IK error: {}'.format(IKdiff))
+        p.createMultiBody(
+            baseVisualShapeIndex=p.createVisualShape(shapeType=p.GEOM_SPHERE, radius=0.01, rgbaColor=[1, 0, 0, .6]),
+            baseCollisionShapeIndex=-1, baseMass=0, basePosition=[x, y, z])
         IKstat.append(IKdiff)
         simdiff = rad2deg(array(ik_solution)) - rad2deg(array(last_state))
-
+        #print('Cumulative  IK error: {}'.format(mean(IKstat, axis=0)), end='\r')
+        p.addUserDebugText(f"Mean IK error:{mean(IKstat, axis=0)}",[.0, -0.4, .60], textSize=1.5, lifeTime=2, textColorRGB=[1, 0, 0]) 
+        time.sleep(0.1)
         #CONVERT TO NICO DEGREES
         nicodeg_ik = []
         for i in range(len(joint_indices)):
@@ -604,6 +615,7 @@ def main():
                                                                     ['{:.2f}'.format(posdiff) for posdiff in IKdiff],
                                                                     ['{:.2f}'.format(goalpos) for goalpos in target_position],
                                                                     ['{:.2f}'.format(realpos) for realpos in [x, y, z]]))
+            
             
         if arg_dict["real_robot"]:
 
