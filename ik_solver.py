@@ -31,16 +31,16 @@ init_pos = {  # standard position
     'l_thumb_x': -180.0,
     'l_indexfinger_x': -170.0,
     'l_middlefingers_x': -180.0,
-    'r_shoulder_z':-20,
-    'r_shoulder_y':70,
-    'r_arm_x':30,
-    'r_elbow_y':60,
-    'r_wrist_z':0,
-    'r_wrist_x':0,
-    'r_thumb_z':-180.0,
-    'r_thumb_x':-180.0,
-    'r_indexfinger_x':-90,
-    'r_middlefingers_x':180.0,
+    'r_shoulder_z': -25,
+    'r_shoulder_y': 84,
+    'r_arm_x': 47,
+    'r_elbow_y': 94,
+    'r_wrist_z': -59,
+    'r_wrist_x': 114,
+    'r_thumb_z': -1,
+    'r_thumb_x': 44,
+    'r_indexfinger_x': -90,
+    'r_middlefingers_x': 38.0,
     'head_z': 0.0,
     'head_y': 0.0
 }
@@ -314,6 +314,7 @@ def main():
     state = []
     sim_time_errors = []
     finished = False
+    failed = 0
 
     movement_duration = arg_dict["duration"]
 
@@ -482,9 +483,11 @@ def main():
                 last_state = state
                 state = []
                 if step > 350:
+                    failed += 1
                     print('ANIMATION MODE FAILED - NEEDS DEBUGGGING')
-                    p.addUserDebugText(f"FAILED, Jointerror:{simdiff}",[.0, -0.4, .64], textSize=1.5, lifeTime=2, textColorRGB=[1, 0, 0]) 
+                    p.addUserDebugText(f"FAILED {failed}, Jointerror:{simdiff}",[.0, -0.4, .64], textSize=1.5, lifeTime=2, textColorRGB=[1, 0, 0]) 
                     finished = True
+                    
 
             toc = time.perf_counter()
 
@@ -596,6 +599,8 @@ def main():
         simdiff = rad2deg(array(ik_solution)) - rad2deg(array(last_state))
         #print('Cumulative  IK error: {}'.format(mean(IKstat, axis=0)), end='\r')
         p.addUserDebugText(f"Mean IK error:{mean(IKstat, axis=0)}",[.0, -0.4, .60], textSize=1.5, lifeTime=2, textColorRGB=[1, 0, 0]) 
+        p.addUserDebugText(f"EE Orient: {[a,b,c,d]}",[.0, -0.4, .55], textSize=1, lifeTime=2, textColorRGB=[1, 0, 0])
+        print([a,b,c,d])
         time.sleep(0.1)
         #CONVERT TO NICO DEGREES
         nicodeg_ik = []

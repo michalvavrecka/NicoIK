@@ -39,9 +39,9 @@ calibration_grid = [[[0.30, -0.20, 0.030],
 
 class TargetGrid:
     def __init__(self):
-        self.x_start, self.x_end, self.x_step = 0.25, 0.5, 0.05
-        self.y_start, self.y_end, self.y_step = -0.25, 0.25, 0.05
-        self.z_start, self.z_end, self.z_step = 0.02, 0.32, 0.1
+        self.x_start, self.x_end, self.x_step = 0.37, 0.51, 0.02
+        self.y_start, self.y_end, self.y_step = -0.2, 0.2, 0.05
+        self.z_start, self.z_end, self.z_step = 0.02, 0.02, 0.02
         
         self.x = self.x_start - self.x_step  # Start before the first value
         self.y = self.y_start
