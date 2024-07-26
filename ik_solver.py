@@ -49,12 +49,7 @@ def nicodeg2rad(nicojoint, nicodegree):
     if nicojoint == 'r_wrist_z':
         rad = deg2rad(nicodegree/2)
     elif nicojoint == 'r_wrist_x':
-        if nicodegree < 0:
-            rad = deg2rad(1/6 * nicodegree)
-        elif nicodegree > 0:
-            rad = deg2rad(5/18 * nicodegree)
-        else:
-            rad = 0
+        rad = deg2rad(nicodegree/4)
     else:
         rad = deg2rad(nicodegree)
     return rad
@@ -63,12 +58,7 @@ def rad2nicodeg(nicojoint, rad):
     if nicojoint == 'r_wrist_z':
         nicodegree = rad2deg(rad) * 2
     elif nicojoint == 'r_wrist_x':
-        if rad < 0:
-            nicodegree = 6 * rad2deg(rad)
-        elif rad > 0:
-            nicodegree = (18 / 5) * rad2deg(rad)
-        else:
-            nicodegree = 0
+        nicodegree = rad2deg(rad) * 4
     else:
         nicodegree = rad2deg(rad)
     return nicodegree
@@ -223,6 +213,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", action="store_true", help="Show detail informtion about robot position in terminal")
     parser.add_argument("-p", "--position", nargs=3, type=float, help="Target position for the robot end effector as a list of three floats.")
+    parser.add_argument("-o", "--orientation", nargs=4, type=float, help="Target orientation for the robot end effector as a list of four floats.")
     parser.add_argument("-j", "--joints", nargs=6, type=float, help="Target joint angles for the robot end effector as a list of six floats.")
     parser.add_argument("-rr", "--real_robot", action="store_true", help="If set, execute action on real robot.")
     parser.add_argument("-a", "--animate", action="store_true", help="If set, the animation of motion is shown.")
@@ -434,11 +425,21 @@ def main():
         #                                        residualThreshold=residual_threshold)
 
         # if not len(ik_solution):            # If we are reading trajectory from the file, we don't need to calculate
-        ik_solution = p.calculateInverseKinematics(robot_id,
-                                                       end_effector_index,
-                                                       target_position,
-                                                       maxNumIterations=max_iterations,
-                                                residualThreshold=residual_threshold)
+        #target_orientation = [-0.18901219284742923, -0.2983003154209216, 0.8705412315868658, 0.3427087347617619]
+        if arg_dict["orientation"]:
+            ik_solution = p.calculateInverseKinematics(robot_id,
+                                                        end_effector_index,
+                                                        target_position,
+                                                        targetOrientation=arg_dict["orientation"],
+                                                        maxNumIterations=max_iterations,
+                                                    residualThreshold=residual_threshold)
+        
+        else:
+            ik_solution = p.calculateInverseKinematics(robot_id,
+                                                        end_effector_index,
+                                                        target_position,
+                                                        maxNumIterations=max_iterations,
+                                                    residualThreshold=residual_threshold)
 
 
         trajectory = []

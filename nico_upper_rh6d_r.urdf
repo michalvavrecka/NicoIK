@@ -236,7 +236,7 @@
 		<child link="right_wrist"/>
 		<origin rpy="0 0 1.57" xyz="0 0 -0.105"/>
 		<axis xyz="0 0 1"/>
-		<limit effort="30" lower="1.4" upper="1.57" velocity="1"/>
+		<limit effort="30" lower="-1.57079633" upper="1.57079633" velocity="1"/>
 	</joint>
 	<link name="right_palm"> <!--gripper-->
 		<visual>
@@ -265,7 +265,7 @@
 		<child link="right_palm"/>
 		<origin rpy="0 0 0" xyz="0 0 -0.10"/>
 		<axis xyz="0 -1 0"/>
-		<limit effort="30" lower="-0.872664626" upper="0.52" velocity="1"/>
+		<limit effort="30" lower="-0.785398163" upper="0.785398163" velocity="1"/>
 	</joint>
 	<!--link name="endeffector">
     	<visual>
