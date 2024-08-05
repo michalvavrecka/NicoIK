@@ -2,6 +2,7 @@ import pybullet as p
 import time
 from numpy import random, rad2deg, deg2rad, set_printoptions, array, linalg, size
 import argparse
+from ik_solver import rad2nicodeg, nicodeg2rad, match_joints
 
 
 # Set speed to reseti to initial position
@@ -76,6 +77,7 @@ def main():
     parser.add_argument("-s", "--speed", type=float, default = 1, help="Speed of arm movement in simulator")
     parser.add_argument("-d", "--duration", type=float, default = 1, help="Duration of movement in si/real robot")
     parser.add_argument("-t", "--trajectory", type=int, help="Number of steps in each trajectory")
+    parser.add_argument("-pp", "--print_pos_only", action="store_true", help="If set, print only the final end effector position")
     arg_dict = vars(parser.parse_args())
 
     max_iterations = 100
@@ -95,8 +97,10 @@ def main():
     num_joints = p.getNumJoints(robot_id)
     joints_limits, joints_ranges, joints_rest_poses, end_effector_index, joint_names, link_names, joint_indices = get_joints_limits(robot_id, num_joints,arg_dict)
 
+    actuated_joints, actuated_initpos = match_joints(init_pos, joint_names)
+
     # Set initial position
-    joints_rest_poses = [deg2rad(init_pos[joint]) for joint in joint_names]
+    joints_rest_poses = [nicodeg2rad(joint, init_pos[joint]) for joint in joint_names]
 
     for i in range(len(joint_indices)):
         p.resetJointState(robot_id, joint_indices[i], joints_rest_poses[i])
@@ -115,7 +119,7 @@ def main():
                                                     maxNumIterations=max_iterations,
                                                     residualThreshold=residual_threshold)
     elif arg_dict["joints"]:
-        ik_solution = deg2rad(arg_dict["joints"])
+        ik_solution = nicodeg2rad(actuated_joints, arg_dict["joints"])
 
 
 
@@ -134,9 +138,9 @@ def main():
         while not finished:
             for j in range(len(joint_indices)):
                 state.append(p.getJointState(robot_id,joint_indices[j])[0])
-            simdiff = rad2deg(array(ik_solution)) - rad2deg(array(state))
+            simdiff = rad2nicodeg(actuated_joints, array(ik_solution)) - rad2nicodeg(actuated_joints, array(state))
             (x,y,z), (a,b,c,d),_,_,_,_ = p.getLinkState(robot_id, end_effector_index) 
-            print('SimNICO, Step: {}, Joint angles: {}, Pos: {}'.format(step, ['{:.2f}'.format(diff) for diff in rad2deg(array(state))], array([x,y,z]),end='\r'))                
+            print('SimNICO, Step: {}, Joint angles: {}, Pos: {}'.format(step, ['{:.2f}'.format(diff) for diff in rad2nicodeg(actuated_joints, array(state))], array([x,y,z]),end='\r'))
             #print(linalg.norm(simdiff))
             if linalg.norm(simdiff) <= ACCURACY:
                 finished = True
@@ -154,10 +158,10 @@ def main():
             filename = 'trajectories/trajectory.txt'
             with open(filename, 'w') as f:
                 steps = arg_dict["trajectory"]
-                i_dif = (len(trajectory) - 1) / (steps - 1)
+                i_diff = (len(trajectory) - 1) / (steps - 1)
                 for j in range(steps):
-                    if int(j*i_dif) != int((j-1)*i_dif):
-                        f.write("%s\n" % rad2deg(trajectory[int(j*i_dif)]))
+                    if int(j*i_diff) != int((j-1)*i_diff):
+                        f.write("%s\n" % rad2nicodeg(actuated_joints, trajectory[int(j*i_diff)]))
 
         finished = False
 
@@ -169,12 +173,16 @@ def main():
     
     #Calculate IK solution error
 
-    (x,y,z), (a,b,c,d),_,_,_,_ = p.getLinkState(robot_id, end_effector_index) 
-    print('SimNico final_pos: {}'.format([x,y,z])) 
-    if arg_dict["position"]:
-        IKdiff = (array(target_position) - array([x,y,z]))
-        print('SimNico position error: {}'.format(IKdiff))
-    print('SimNico final joint angles: {}'.format(rad2deg(array(ik_solution))))  
+    (x,y,z), (a,b,c,d),_,_,_,_ = p.getLinkState(robot_id, end_effector_index)
+
+    if arg_dict["print_pos_only"]:
+        print(x, y, z)
+    else:
+        print('SimNico final_pos: {}'.format([x,y,z]))
+        if arg_dict["position"]:
+            IKdiff = (array(target_position) - array([x,y,z]))
+            print('SimNico position error: {}'.format(IKdiff))
+        print('SimNico final joint angles: {}'.format(rad2nicodeg(actuated_joints, array(ik_solution))))
     
     p.disconnect()
 

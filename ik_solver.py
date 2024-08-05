@@ -45,23 +45,48 @@ init_pos = {  # standard position
     'head_y': 0.0
 }
 
-def nicodeg2rad(nicojoint, nicodegree):
-    if nicojoint == 'r_wrist_z':
-        rad = deg2rad(nicodegree/2)
-    elif nicojoint == 'r_wrist_x':
-        rad = deg2rad(nicodegree/4)
-    else:
-        rad = deg2rad(nicodegree)
-    return rad
+def nicodeg2rad(nicojoints, nicodegrees):
+    if isinstance(nicojoints, str):
+        nicojoints = [nicojoints]
+    if isinstance(nicodegrees, (int, float)):
+        nicodegrees = [nicodegrees]
 
-def rad2nicodeg(nicojoint, rad):
-    if nicojoint == 'r_wrist_z':
-        nicodegree = rad2deg(rad) * 2
-    elif nicojoint == 'r_wrist_x':
-        nicodegree = rad2deg(rad) * 4
-    else:
-        nicodegree = rad2deg(rad)
-    return nicodegree
+    rads = []
+
+    for nicojoint, nicodegree in zip(nicojoints, nicodegrees):
+        if nicojoint == 'r_wrist_z':
+            rad = deg2rad(nicodegree/2)
+        elif nicojoint == 'r_wrist_x':
+            rad = deg2rad(nicodegree/4)
+        else:
+            rad = deg2rad(nicodegree)
+        rads.append(rad)
+
+    if len(rads) == 1:
+        return rads[0]
+    return rads
+
+
+def rad2nicodeg(nicojoints, rads):
+    if isinstance(nicojoints, str):
+        nicojoints = [nicojoints]
+    if isinstance(rads, (int, float)):
+        rads = [rads]
+
+    nicodegrees = []
+
+    for nicojoint, rad in zip(nicojoints, rads):
+        if nicojoint == 'r_wrist_z':
+            nicodegree = rad2deg(rad) * 2
+        elif nicojoint == 'r_wrist_x':
+            nicodegree = rad2deg(rad) * 4
+        else:
+            nicodegree = rad2deg(rad)
+        nicodegrees.append(nicodegree)
+
+    if len(nicodegrees) == 1:
+        return nicodegrees[0]
+    return nicodegrees
 
 set_printoptions(precision=3)
 set_printoptions(suppress=True)
@@ -195,14 +220,15 @@ def to_formatted_str(number):
 
 def write_first_line(file):
     offset1, offset2 = 7 * (DECIMALS + 6), DECIMALS + 20
-    first_line = "JOINTS ANGLES (DEGREES)" + " " * (offset1 - 23) + "DURATION (SECONDS)" + " " * (offset2 - 18) + "END EFFECTOR POSITION (CARTEZIAN)"
+    first_line = "JOINTS ANGLES (DEGREES)" + " " * (offset1 - 23) + "DURATION (SECONDS)" + " " * (
+                offset2 - 18) + "END EFFECTOR POSITION (CARTEZIAN)"
     file.write(first_line + "\n")
 
 
 def write_line(file, joint_angles, duration, end_effector_coords):
     offset1, offset2 = 7 * (DECIMALS + 6), DECIMALS + 20
 
-    length = file.write("%s " % ','.join(list(map(to_formatted_str, round(rad2deg(joint_angles), DECIMALS)))))
+    length = file.write("%s " % ','.join(list(map(to_formatted_str, round(joint_angles, DECIMALS)))))
     file.write(" " * (offset1 - length))
     length = file.write("%s " % to_formatted_str(round(duration, DECIMALS)))
     file.write(" " * (offset2 - length))
@@ -335,6 +361,8 @@ def main():
             os.mkdir("trajectories")
         if not os.path.exists("linear_trajectories"):
             os.mkdir("linear_trajectories")
+        if not os.path.exists("test_trajectories"):
+            os.mkdir("test_trajectories")
     
     if arg_dict["save_statistics"]:
         if not os.path.exists("statistics"):
@@ -350,7 +378,7 @@ def main():
         if arg_dict["position"]:
             target_position = arg_dict["position"]
         elif arg_dict["calibration"]:
-            target_position = next(grid)
+            target_position = calibration_matrices.target_rectangle(i)
         elif arg_dict["experiment"]:
             target_position = calibration_matrices.target_experiment(i)
         elif arg_dict["trajectory"] is not None:
@@ -382,15 +410,13 @@ def main():
 
             resetsim_pos = []
             #CONVERT FROM NICO DEGREES
-            for i in range(len(joint_indices)):
-                p.resetJointState(robot_id, joint_indices[i], nicodeg2rad(actuated_joints[i], actuated_initpos[i]))
+            for j in range(len(joint_indices)):
+                p.resetJointState(robot_id, joint_indices[j], nicodeg2rad(actuated_joints[j], actuated_initpos[j]))
             for j in range(len(joint_indices)):
                     resetsim_pos.append(p.getJointState(robot_id, joint_indices[j])[0])
             time.sleep(0.1)
             #CONVERT TO NICO DEGREES
-            nicodeg_resetsim_pos = []
-            for i in range(len(joint_indices)):
-                nicodeg_resetsim_pos.append(rad2nicodeg(actuated_joints[i], resetsim_pos[i]))
+            nicodeg_resetsim_pos = rad2nicodeg(actuated_joints, resetsim_pos)
             
             
             simdifference = array(actuated_initpos) - array(nicodeg_resetsim_pos)
@@ -467,16 +493,14 @@ def main():
                 simdiff = rad2deg(array(ik_solution)) - rad2deg(array(state))
                 if arg_dict["verbose"]:
                     #CONVERT TO NICO DEGREES
-                    nicodeg_pos = []
-                    for i in range(len(joint_indices)):
-                        nicodeg_pos.append(rad2nicodeg(actuated_joints[i], state[i]))
+                    nicodeg_pos = rad2nicodeg(actuated_joints, state)
                     print('SimNICO, Step: {}, JointDeg: {}'.format(step, ['{:.2f}'.format(pos) for pos in nicodeg_pos], end='\n'))
                 if linalg.norm(simdiff) <= 3:
                     finished = True
 
                 # Saving trajectory points in lists for writing into file
                 if arg_dict["save_trajectory"]:
-                    save_trajectory_joints.append(state)
+                    save_trajectory_joints.append(rad2nicodeg(actuated_joints, state))
                     save_trajectory_durations.append(time.perf_counter() - tic)
                     save_trajectory_end_effector_coords.append(p.getLinkState(robot_id, end_effector_index)[0])
                 spin_simulation(1)
@@ -496,7 +520,7 @@ def main():
             if arg_dict["save_trajectory"]:
                 for j in range(len(joint_indices)):
                     state.append(p.getJointState(robot_id, joint_indices[j])[0])
-                save_trajectory_joints.append(state)
+                save_trajectory_joints.append(rad2nicodeg(actuated_joints, state))
                 save_trajectory_durations.append(toc - tic)
                 save_trajectory_end_effector_coords.append(p.getLinkState(robot_id, end_effector_index)[0])
                 state = []
@@ -517,14 +541,14 @@ def main():
                 with open(filename, 'w') as f:
                     write_first_line(f)
                     if steps > 1:
-                        i_dif = (len(save_trajectory_joints) - 1) / (steps - 1)
+                        i_diff = (len(save_trajectory_joints) - 1) / (steps - 1)
                         for j in range(steps):
-                            index = int(j * i_dif)
-                            if index != int((j - 1) * i_dif):
+                            index = int(j * i_diff)
+                            if index != int((j - 1) * i_diff):
                                 duration = 1
                                 if j != 0:
                                     duration = save_trajectory_durations[index] - save_trajectory_durations[
-                                        int((j - 1) * i_dif)]
+                                        int((j - 1) * i_diff)]
 
                                 write_line(f, save_trajectory_joints[index], duration,
                                            save_trajectory_end_effector_coords[index])
@@ -576,8 +600,8 @@ def main():
         else:
             tic = time.perf_counter()
             
-            for i in range(len(joint_indices)):
-                p.resetJointState(robot_id, joint_indices[i], ik_solution[i])
+            for j in range(len(joint_indices)):
+                p.resetJointState(robot_id, joint_indices[j], ik_solution[j])
             for j in range(len(joint_indices)):
                     state.append(p.getJointState(robot_id, joint_indices[j])[0])
             last_state = state
@@ -604,15 +628,11 @@ def main():
         print([a,b,c,d])
         time.sleep(0.1)
         #CONVERT TO NICO DEGREES
-        nicodeg_ik = []
-        for i in range(len(joint_indices)):
-            nicodeg_ik.append(rad2nicodeg(actuated_joints[i], ik_solution[i]))
+        nicodeg_ik = rad2nicodeg(actuated_joints, ik_solution)
 
         if arg_dict["verbose"]:
             #CONVERT TO NICO DEGREES
-            nicodeg_state = []
-            for i in range(len(joint_indices)):
-                nicodeg_state.append(rad2nicodeg(actuated_joints[i], last_state[i]))
+            nicodeg_state = rad2nicodeg(actuated_joints, last_state)
 
             print('SimNICO goal: {:.2f}s \n Error: {} \n Goal: {} \n Real: {} \n PosError: {} \n GoalPos: {} \n RealPos: {}'.format((toc - tic),
                                                                     ['{:.2f}'.format(diff) for diff in simdiff],
@@ -631,22 +651,22 @@ def main():
 
             print('movement_duration: {}'.format(movement_duration))
 
-            for i, realjoint in enumerate(actuated_joints):
+            for j, realjoint in enumerate(actuated_joints):
                 
                 
-                speed = speed_control(actual_position[i], nicodeg_ik[i], movement_duration)
+                speed = speed_control(actual_position[j], nicodeg_ik[j], movement_duration)
                 
                 #CORRECT SPEED FOR WRIST JOINTS
                 if realjoint == 'r_wrist_z' or realjoint == 'r_wrist_x':
                     speed = speed/10
 
-                #print('Joint: {} , Angle: {}Speed: {}'.format(realjoint, nicodeg_ik[i],speed))
+                #print('Joint: {} , Angle: {}Speed: {}'.format(realjoint, nicodeg_ik[j],speed))
                 #while True:
                 #    angle = float(input("Enter angle: "))
                 #    speed = float(input("Enter speed: "))
                 #    robot.setAngle('r_elbow_y', angle, speed)
-                robot.setAngle(realjoint, nicodeg_ik[i], speed)
-                targetdeg.append(nicodeg_ik[i])
+                robot.setAngle(realjoint, nicodeg_ik[j], speed)
+                targetdeg.append(nicodeg_ik[j])
             nicodeg_ik = []
             #time_response = check_response(robot, actuated_joints, joint_values, tic)
             #print('RealNICO response time: {:.2f}s'.format(time_response))
